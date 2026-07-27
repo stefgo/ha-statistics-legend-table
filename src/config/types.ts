@@ -1,0 +1,298 @@
+/**
+ * Configuration and row types for the Energy Custom Legend card.
+ *
+ * Unlike the first version of this card, nothing here mirrors or forwards the
+ * configuration of another card: `entities` defines what the legend shows,
+ * `timespan`/`aggregation` define which statistics are fetched for it, and the
+ * optional `card` / `link` blocks describe how the legend sits next to, and
+ * talks to, an unrelated card.
+ */
+
+import type { LovelaceCardConfig } from "custom-card-helpers";
+
+/** Value columns that can be shown per legend row */
+export type LegendColumn = "sum" | "min" | "max" | "avg";
+
+export const ALL_LEGEND_COLUMNS: LegendColumn[] = ["sum", "min", "max", "avg"];
+
+/** Statistic value read per bucket, mirrors the recorder's own types */
+export type StatType = "change" | "sum" | "mean" | "min" | "max" | "state";
+
+export const ALL_STAT_TYPES: StatType[] = ["change", "sum", "mean", "min", "max", "state"];
+
+/** Bucket size requested from the recorder; `auto` derives it from the timespan */
+export type AggregationPeriod = "5minute" | "hour" | "day" | "week" | "month";
+
+export type AggregationSetting = AggregationPeriod | "auto";
+
+export const ALL_AGGREGATION_PERIODS: AggregationPeriod[] = [
+  "5minute",
+  "hour",
+  "day",
+  "week",
+  "month",
+];
+
+/* -------------------------------------------------------------------------- */
+/* Timespan                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export type TimespanMode = "energy" | "relative" | "fixed";
+
+/** Named ranges for `timespan.mode: relative` */
+export type RelativePeriod =
+  | "hour"
+  | "day"
+  | "week"
+  | "month"
+  | "year"
+  | "last_60_minutes"
+  | "last_24_hours"
+  | "last_7_days"
+  | "last_30_days"
+  | "last_12_months";
+
+export const ALL_RELATIVE_PERIODS: RelativePeriod[] = [
+  "hour",
+  "day",
+  "week",
+  "month",
+  "year",
+  "last_60_minutes",
+  "last_24_hours",
+  "last_7_days",
+  "last_30_days",
+  "last_12_months",
+];
+
+export interface TimespanConfig {
+  /**
+   * - `energy`: follows the dashboard's energy date picker, so the legend shows
+   *   the same range as any neighbouring energy card without knowing about it
+   * - `relative`: a rolling range relative to now (`period` + `offset`)
+   * - `fixed`: an explicit `start`/`end`
+   */
+  mode?: TimespanMode;
+  /**
+   * `mode: energy` only. Matches the `collection_key` of the card whose date
+   * picker should drive this legend; unset uses the dashboard's default one.
+   */
+  collection_key?: string;
+  /** `mode: relative` only, defaults to `day` */
+  period?: RelativePeriod;
+  /** `mode: relative` only: shifts the range by whole periods, defaults to 0 */
+  offset?: number;
+  /** `mode: fixed` only: ISO 8601 timestamp, defaults to the start of today */
+  start?: string;
+  /** `mode: fixed` only: ISO 8601 timestamp, defaults to the end of `start`'s day */
+  end?: string;
+}
+
+export interface AggregationConfig {
+  /**
+   * Bucket size requested from the recorder. `auto` follows Home Assistant's own
+   * rule (> 35 days → month, > 2 days → day, else hour).
+   *
+   * This is not just a performance knob: `min`/`max`/`avg` are computed *per
+   * bucket*, so the period decides what those columns actually mean (e.g. the
+   * daily maximum vs. the hourly maximum). `sum` is unaffected.
+   */
+  period?: AggregationSetting;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Entities                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export interface EntityConfig {
+  /** Statistic entity shown in this row */
+  statistic_id?: string;
+  /**
+   * Several statistics combined into one row, summed bucket by bucket. Covers
+   * the common "two grid meters are one line" case without a full expression
+   * language. Mutually exclusive with `statistic_id`.
+   */
+  statistic_ids?: string[];
+  /**
+   * Stable identifier of this row, used by `legend` selectors and by the link
+   * adapters. Defaults to `statistic_id` (or the first of `statistic_ids`).
+   */
+  key?: string;
+  /** Row label, defaults to the statistic's name from its metadata */
+  name?: string;
+  /** Swatch color, defaults to the next color of the built-in palette */
+  color?: string;
+  /** Statistic value read per bucket, defaults to `change` */
+  stat_type?: StatType;
+  /** Unit appended to the values, defaults to the unit from the statistic metadata */
+  unit?: string;
+  /** Every bucket value is multiplied by this, applied before `add`. Defaults to 1 */
+  multiply?: number;
+  /** Added to every bucket value after `multiply`. Defaults to 0 */
+  add?: number;
+  /** Row starts out hidden (and, with a link, hides its target too) */
+  hidden_by_default?: boolean;
+  /**
+   * Target this row addresses in the linked card. Interpretation depends on the
+   * link mode: a series id for `chart`, an entity id for `entity`, an opaque key
+   * for `event`. Defaults to the row's `key`.
+   */
+  link?: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Legend                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/** Configuration of the closing total row below the divider */
+export interface LegendTotalConfig {
+  /** Label of the total row, defaults to "Gesamt" / "Total" */
+  name?: string;
+  /**
+   * - `sum`: sum of all visible legend rows
+   * - `ratio`: numerator / denominator as percentage (e.g. autarky), computed
+   *   directly from the named statistic entities — independent of `entities`,
+   *   so it also works for statistics that never become a legend row
+   * - `none`: no total row
+   */
+  mode?: "sum" | "ratio" | "none";
+  /** `statistic_id`s summed for the numerator, `ratio` mode only */
+  numerator?: string[];
+  /** `statistic_id`s summed for the denominator, `ratio` mode only */
+  denominator?: string[];
+  /** Statistic type read per entity, `ratio` mode only. Defaults to `change` */
+  stat_type?: StatType;
+  /** Decimal places, defaults to the legend precision (ratio mode: 1) */
+  precision?: number;
+  /** Unit appended to the value, defaults to "%" in ratio mode */
+  unit?: string;
+}
+
+export interface LegendConfig {
+  /** Value columns per row, defaults to ["sum"] */
+  columns?: LegendColumn[];
+  /** Decimal places for the value columns, defaults to 2 */
+  precision?: number;
+  /** Append the unit to values, defaults to true */
+  show_unit?: boolean;
+  /** Hide rows whose values are all zero/empty, defaults to false */
+  hide_zero?: boolean;
+  /** Show column headers above the rows, defaults to false */
+  show_headers?: boolean;
+  /** Closing total row */
+  total?: LegendTotalConfig;
+  /** Splits the legend into named sections; unmatched rows form a trailing, unnamed group */
+  groups?: LegendGroupConfig[];
+  /** Rows rendered without value columns; excluded from `total: {mode: sum}` */
+  no_values?: string[];
+  /**
+   * Explicit row order. Rows matching an earlier selector are rendered first;
+   * rows matching none keep their original relative order and are appended.
+   */
+  order?: string[];
+}
+
+/** Fields of LegendConfig a group may override */
+export type LegendGroupOverrides = Pick<
+  LegendConfig,
+  "columns" | "precision" | "show_unit" | "hide_zero" | "show_headers" | "total" | "order"
+>;
+
+export interface LegendGroupConfig extends LegendGroupOverrides {
+  /** Heading rendered above the group's rows; omitted groups render without one */
+  name?: string;
+  /** Rows matched into this group (selector semantics, see `matchesSelector`) */
+  entities?: string[];
+  /** Additional `no_values` selectors, added to the top-level `legend.no_values` */
+  no_values?: string[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Link                                                                        */
+/* -------------------------------------------------------------------------- */
+
+export type LinkMode = "chart" | "entity" | "event" | "none";
+
+export interface LinkConfig {
+  /**
+   * - `chart`: toggles a dataset of an `ha-chart-base` inside the target card
+   * - `entity`: toggles a Home Assistant entity (typically an `input_boolean`)
+   * - `event`: dispatches a CustomEvent on `window`
+   * - `none`: the legend only greys out its own row
+   */
+  mode?: LinkMode;
+  /**
+   * `chart` mode: which card to look inside. `card` (the default) means the card
+   * rendered from the `card:` block; anything else is a CSS selector resolved
+   * against the document, piercing shadow roots.
+   */
+  target?: string;
+  /** `event` mode: identifies this legend in the dispatched events */
+  link_id?: string;
+  /** `entity` mode: service called on click, defaults to `homeassistant.toggle` */
+  service?: string;
+  /**
+   * `entity` mode: which entity state counts as "hidden", defaults to `off`.
+   * A row is drawn greyed out while its entity is in this state.
+   */
+  hidden_state?: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Card                                                                        */
+/* -------------------------------------------------------------------------- */
+
+export interface EnergyCustomLegendCardConfig extends LovelaceCardConfig {
+  type: string;
+  /** Card header rendered above everything else */
+  title?: string;
+  /** Any Lovelace card, rendered above the legend inside the same `ha-card` */
+  card?: LovelaceCardConfig;
+  timespan?: TimespanConfig;
+  aggregation?: AggregationConfig;
+  entities?: EntityConfig[];
+  legend?: LegendConfig;
+  /** One link block, or several that all fire on a click */
+  link?: LinkConfig | LinkConfig[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Runtime shapes                                                              */
+/* -------------------------------------------------------------------------- */
+
+/** One rendered legend row */
+export interface LegendRow {
+  /** Stable id, from `EntityConfig.key` */
+  id: string;
+  name: string;
+  /** Solid color, used for the swatch border */
+  color: string;
+  /** Translucent version of `color`, used for the swatch fill */
+  fillColor: string;
+  unit: string;
+  sum: number;
+  min: number;
+  max: number;
+  avg: number;
+  /** Number of buckets that carried a value */
+  count: number;
+  /** Target passed to the link adapters, from `EntityConfig.link` */
+  link: string;
+}
+
+/** Rendered total row */
+export interface LegendTotal {
+  name: string;
+  value: number;
+  unit: string;
+  precision: number;
+}
+
+/** One resolved legend section, ready to render */
+export interface LegendGroupResult {
+  /** Undefined for the implicit/no-groups bucket — no heading is rendered */
+  name?: string;
+  /** Group override merged over the top-level legend config */
+  config: LegendConfig;
+  rows: LegendRow[];
+}
