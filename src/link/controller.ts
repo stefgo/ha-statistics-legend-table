@@ -63,11 +63,11 @@ export class LinkController {
   }
 
   /**
-   * Whether a row is hidden. The first adapter with an opinion wins, so a chart
-   * toggled directly (or an entity switched elsewhere) is reflected in the
-   * legend; local state only fills in when nobody knows better.
+   * Whether a single target is hidden. The first adapter with an opinion wins,
+   * so a chart toggled directly (or an entity switched elsewhere) is reflected
+   * in the legend; local state only fills in when nobody knows better.
    */
-  public isHidden(target: string): boolean {
+  private _isTargetHidden(target: string): boolean {
     for (const adapter of this._adapters) {
       const hidden = adapter.isHidden(target);
       if (hidden !== undefined) {
@@ -77,17 +77,30 @@ export class LinkController {
     return this._hidden.has(target);
   }
 
+  /**
+   * Whether a row is hidden. With several targets the row counts as hidden only
+   * once *all* of them are — a partially hidden row still renders normally, and
+   * the next click hides the rest, which is the only reading that keeps a
+   * multi-target row usable after someone toggled one series in the chart.
+   */
+  public isHidden(targets: string[]): boolean {
+    return targets.length > 0 && targets.every((target) => this._isTargetHidden(target));
+  }
+
   /** Handles a click on a legend row */
-  public toggle(target: string): void {
-    const hidden = !this.isHidden(target);
+  public toggle(targets: string[]): void {
+    // One state for the whole row, so several targets cannot drift apart.
+    const hidden = !this.isHidden(targets);
 
-    if (hidden) {
-      this._hidden.add(target);
-    } else {
-      this._hidden.delete(target);
-    }
+    targets.forEach((target) => {
+      if (hidden) {
+        this._hidden.add(target);
+      } else {
+        this._hidden.delete(target);
+      }
+      this._adapters.forEach((adapter) => adapter.toggle(target, hidden));
+    });
 
-    this._adapters.forEach((adapter) => adapter.toggle(target, hidden));
     this._notify();
   }
 }

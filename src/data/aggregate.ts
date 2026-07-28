@@ -197,7 +197,7 @@ export function buildRows(
       max: count ? max : 0,
       avg: count ? sum / count : 0,
       count,
-      link: entity.link,
+      links: entity.links,
       noValues: entity.noValues,
     };
   });

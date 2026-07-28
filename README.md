@@ -124,7 +124,7 @@ Stunde. `Σ` ist davon unberührt. `auto` folgt der Regel von Home Assistant (> 
 | `unit`              | String | Metadaten | Einheit hinter den Werten |
 | `multiply` / `add`  | Zahl   | `1` / `0` | Lineare Umrechnung je Bucket (`wert * multiply + add`) |
 | `hidden_by_default` | bool   | `false` | Zeile (und ihr Link-Ziel) startet ausgeblendet |
-| `link`              | String | `key`   | Ziel in der gekoppelten Komponente, siehe `link` |
+| `link`              | String / Liste | `key` | Ziel(e) in der gekoppelten Komponente, siehe `link` |
 | `no_values`         | bool   | `false` | Zeile ohne Wertanzeige; fließt nicht in `total: {mode: sum}` ein |
 
 `color` akzeptiert entweder eine einzelne Farbe oder `{light: ..., dark: ...}`, um für den
@@ -290,7 +290,22 @@ beeinflusst).
 | `link_id`      | String | –                      | Nur `event`: identifiziert diese Legende in den Events |
 
 Welche Zeile welches Ziel anspricht, steht bei der Zeile selbst in `entities[].link`
-(Default: der `key` der Zeile).
+(Default: der `key` der Zeile). `entities[].link` darf auch eine **Liste** sein — dann steuert
+eine Legendenzeile mehrere Ziele gleichzeitig:
+
+```yaml
+entities:
+  - key: pv
+    name: PV gesamt
+    statistic_id: sensor.pv_produktion
+    link:
+      - calculation_0
+      - sensor.pv_ueberschuss
+```
+
+Ein Klick setzt alle Ziele auf **denselben** Zustand. Ausgegraut wird die Zeile erst, wenn alle
+Ziele ausgeblendet sind; ist nur ein Teil ausgeblendet (weil jemand direkt im Chart geklickt
+hat), gilt die Zeile als sichtbar und der nächste Klick blendet den Rest mit aus.
 
 ### `mode: chart`
 
@@ -316,10 +331,33 @@ entities:
 ```
 
 `entities[].link` wird gegen die Serien-IDs des Charts aufgelöst: exakte Übereinstimmung zuerst,
-sonst Präfix bis zum ersten Doppelpunkt. Damit genügt in aller Regel die `statistic_id`, auch
-wenn `energy-custom-graph` intern IDs der Form
-`<statistic_id>:<stat_type>:<chart_type>:<index>` verwendet. Nur bei mehreren Serien auf
-derselben `statistic_id` muss man die vollständige ID in `link` angeben.
+sonst **alle** IDs, deren Segmente mit dem Target beginnen. Damit genügt in aller Regel die
+`statistic_id`, auch wenn `energy-custom-graph` intern IDs der Form
+`<statistic_id>:<stat_type>:<chart_type>:<index>` verwendet.
+
+Kommt dieselbe `statistic_id` mehrfach im Chart vor, erfasst `link: sensor.x` **alle** diese
+Serien auf einmal; sie werden gemeinsam geschaltet, und die Legendenzeile wird ausgegraut,
+sobald alle ausgeblendet sind. Um gezielt eine davon anzusprechen, nennt man weitere Segmente:
+
+```yaml
+entities:
+  - statistic_id: sensor.battery_soc
+    name: Ladestand Ø
+    stat_type: mean
+    link: sensor.battery_soc:mean         # nur die mean-Serie
+  - statistic_id: sensor.battery_soc
+    name: Ladestand Max
+    stat_type: max
+    link: sensor.battery_soc:max:line:3   # bis hin zur vollständigen ID
+```
+
+Die tatsächlichen IDs lassen sich im DevTools-Inspector nachsehen: `ha-chart-base` auswählen und
+`$0.data.map(s => s.id)` ausführen.
+
+Berechnete Serien (`calculation:` in `energy-custom-graph`) haben keine `statistic_id`; sie
+heißen dort `calculation_<index>`, wobei `<index>` die **Position der Serie in der `series:`
+-Liste** ist (nullbasiert, über alle Serien gezählt). Für die erste Serie also
+`link: calculation_0`.
 
 Steht die Zielkarte nicht in `card:`, sondern als eigene Karte daneben, zeigt `target` per
 CSS-Selektor darauf (die Suche geht durch Shadow-Roots):

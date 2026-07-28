@@ -71,7 +71,8 @@ export interface ResolvedEntity {
   multiply: number;
   add: number;
   hiddenByDefault: boolean;
-  link: string;
+  /** At least one target; several mean one row drives several targets */
+  links: string[];
   noValues: boolean;
 }
 
@@ -133,6 +134,19 @@ function resolveColorConfig(value: unknown): ColorConfig | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Normalizes `entities[].link`. A single string and a list are folded into the
+ * same list form; an empty or malformed value falls back to the row's key, so a
+ * typo costs the link, not the whole card.
+ */
+function resolveLinkTargets(link: string | string[] | undefined, key: string): string[] {
+  const list = Array.isArray(link) ? link : [link];
+  const targets = list
+    .filter((target): target is string => typeof target === "string" && Boolean(target.trim()))
+    .map((target) => target.trim());
+  return targets.length ? [...new Set(targets)] : [key];
 }
 
 /**
@@ -234,7 +248,7 @@ function resolveEntity(entity: EntityConfig, index: number): ResolvedEntity {
     multiply: numberOr(entity.multiply, 1, `entities[${index}].multiply`),
     add: numberOr(entity.add, 0, `entities[${index}].add`),
     hiddenByDefault: entity.hidden_by_default === true,
-    link: typeof entity.link === "string" && entity.link.trim() ? entity.link.trim() : key,
+    links: resolveLinkTargets(entity.link, key),
     noValues: entity.no_values === true,
   };
 }

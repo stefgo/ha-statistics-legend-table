@@ -191,11 +191,14 @@ export interface EntityConfig {
   /** Row starts out hidden (and, with a link, hides its target too) */
   hidden_by_default?: boolean;
   /**
-   * Target this row addresses in the linked card. Interpretation depends on the
-   * link mode: a series id for `chart`, an entity id for `entity`, an opaque key
-   * for `event`. Defaults to the row's `key`.
+   * Target(s) this row addresses in the linked card. Interpretation depends on
+   * the link mode: a series id for `chart`, an entity id for `entity`, an opaque
+   * key for `event`. Defaults to the row's `key`.
+   *
+   * A list links one row to several targets at once: a click drives all of them
+   * to the same state, and the row is drawn greyed out once they are all hidden.
    */
-  link?: string;
+  link?: string | string[];
   /** Row renders without value columns; excluded from `total: {mode: sum}` */
   no_values?: boolean;
 }
@@ -327,8 +330,8 @@ export interface LegendRow {
   avg: number;
   /** Number of buckets that carried a value */
   count: number;
-  /** Target passed to the link adapters, from `EntityConfig.link` */
-  link: string;
+  /** Targets passed to the link adapters, from `EntityConfig.link`; never empty */
+  links: string[];
   /** From `EntityConfig.no_values` */
   noValues: boolean;
 }

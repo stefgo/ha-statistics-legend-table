@@ -95,7 +95,9 @@ export class EnergyCustomLegendCard extends LitElement {
 
     this._links.configure(
       this._config.links,
-      this._config.entities.filter((entity) => entity.hiddenByDefault).map((entity) => entity.link)
+      this._config.entities
+        .filter((entity) => entity.hiddenByDefault)
+        .flatMap((entity) => entity.links)
     );
 
     void this._setupWrappedCard(config);
@@ -299,7 +301,7 @@ export class EnergyCustomLegendCard extends LitElement {
   }
 
   private _handleLegendClick(row: LegendRow): void {
-    this._links.toggle(row.link);
+    this._links.toggle(row.links);
   }
 
   protected render() {
@@ -333,7 +335,7 @@ export class EnergyCustomLegendCard extends LitElement {
     const columns = columnsFor(group.config.columns);
     // 52px color cell + flexible name + one column per value
     const gridColumns = `52px 1fr ${columns.map(() => "auto").join(" ")}`;
-    const visibleRows = group.rows.filter((row) => !this._links.isHidden(row.link));
+    const visibleRows = group.rows.filter((row) => !this._links.isHidden(row.links));
     const total = computeTotal(visibleRows, group.config, this._statistics, this._localize);
 
     return html`
@@ -371,7 +373,7 @@ export class EnergyCustomLegendCard extends LitElement {
     columns: LegendColumn[],
     gridColumns: string
   ) {
-    const hidden = this._links.isHidden(row.link);
+    const hidden = this._links.isHidden(row.links);
     const precision = config.precision ?? DEFAULT_PRECISION;
     const showUnit = config.show_unit !== false;
     const unit = showUnit && row.unit ? ` ${row.unit}` : "";

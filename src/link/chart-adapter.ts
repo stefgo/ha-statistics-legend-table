@@ -129,40 +129,63 @@ export class ChartLinkAdapter implements LinkAdapter {
     this._hidden.clear();
   }
 
-  public toggle(target: string): void {
+  /**
+   * `_handleDatasetToggle()` flips a series, so it is only called for series not
+   * already in the requested state. That keeps the series behind one legend row
+   * in sync, and stops a click from re-hiding a series that was toggled in the
+   * chart itself.
+   */
+  public toggle(target: string, hidden: boolean): void {
     const chartBase = this._chartBase;
-    const seriesId = this._resolveSeriesId(target);
-    if (chartBase && seriesId && typeof chartBase._handleDatasetToggle === "function") {
-      chartBase._handleDatasetToggle(seriesId);
+    if (!chartBase || typeof chartBase._handleDatasetToggle !== "function") {
+      return;
     }
+    this._resolveSeriesIds(target).forEach((seriesId) => {
+      if (this._hidden.has(seriesId) !== hidden) {
+        chartBase._handleDatasetToggle(seriesId);
+      }
+    });
   }
 
+  /**
+   * With several matching series the target counts as hidden only once all of
+   * them are, mirroring how the controller treats a row with several targets.
+   */
   public isHidden(target: string): boolean | undefined {
     if (!this._chartBase) {
       return undefined;
     }
-    const seriesId = this._resolveSeriesId(target);
-    return seriesId ? this._hidden.has(seriesId) : undefined;
+    const seriesIds = this._resolveSeriesIds(target);
+    return seriesIds.length
+      ? seriesIds.every((seriesId) => this._hidden.has(seriesId))
+      : undefined;
   }
 
   /**
-   * Maps a configured link target onto an actual series id of the chart.
+   * Maps a configured link target onto the actual series ids of the chart.
    *
    * Cards build ids in their own shapes — `energy-custom-graph` uses
-   * `<statistic_id>:<stat_type>:<chart_type>:<index>`, the built-in energy cards
-   * mostly use the plain `statistic_id`. Users should not have to spell either
-   * out, so an exact match wins, then a prefix match up to the first colon, and
-   * finally the target is passed through unchanged as a best effort.
+   * `<statistic_id>:<stat_type>:<chart_type>:<index>` (and `calculation_<index>`
+   * in place of the statistic for a calculated series), the built-in energy
+   * cards mostly use the plain `statistic_id`. Users should not have to spell
+   * either out, so an exact match wins, otherwise *every* id the target is a
+   * segment prefix of matches: a legend row stands for a statistic, not for
+   * whichever series of it happens to come first. Narrowing down to one series
+   * is a matter of naming more segments (`sensor.x:mean`).
+   *
+   * With nothing matched the target is passed through unchanged as a best
+   * effort — the chart may not have rendered its datasets yet.
    */
-  private _resolveSeriesId(target: string): string | undefined {
+  private _resolveSeriesIds(target: string): string[] {
     const ids = this._seriesIds();
     if (!ids.length) {
-      return target;
+      return [target];
     }
     if (ids.includes(target)) {
-      return target;
+      return [target];
     }
-    return ids.find((id) => id.startsWith(`${target}:`)) ?? target;
+    const matches = ids.filter((id) => id.startsWith(`${target}:`));
+    return matches.length ? matches : [target];
   }
 
   /** Series ids currently rendered, read defensively from the chart's datasets */

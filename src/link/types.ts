@@ -25,7 +25,12 @@ export interface LinkAdapter {
   attach(context: LinkContext): void;
   /** Called on disconnect; must remove every listener it registered */
   detach(): void;
-  /** User clicked a legend row. `target` is the row's resolved `link` value */
+  /**
+   * User clicked a legend row. `target` is one of the row's resolved `link`
+   * values, `hidden` the state it should end up in — adapters must drive the
+   * target to that state rather than flipping it, since a row with several
+   * targets would otherwise leave them out of sync.
+   */
   toggle(target: string, hidden: boolean): void;
   /**
    * Visibility this adapter reports for a target, or `undefined` when it has no

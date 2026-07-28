@@ -40,9 +40,18 @@ export class EntityLinkAdapter implements LinkAdapter {
     this._hass = undefined;
   }
 
-  public toggle(target: string): void {
+  /**
+   * The configured service is typically `homeassistant.toggle`, i.e. it flips
+   * the entity — so a call is skipped when the entity already reports the
+   * requested state. Otherwise a row linking several entities would toggle one
+   * of them back out of sync.
+   */
+  public toggle(target: string, hidden: boolean): void {
     const hass = this._hass;
     if (!hass || !target.includes(".")) {
+      return;
+    }
+    if (this.isHidden(target) === hidden) {
       return;
     }
     const [domain, service] = this._service.split(".");
