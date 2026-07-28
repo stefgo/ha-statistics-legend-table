@@ -23,6 +23,7 @@ import {
   LegendGroupResult,
   LegendRow,
 } from "./config/types";
+import { isDarkMode } from "./colors";
 import { buildRows, collectStatTypes, collectStatisticIds } from "./data/aggregate";
 import { subscribeEnergyRange } from "./data/energy-collection";
 import { Statistics, StatisticsMetadata, fetchStatistics } from "./data/statistics";
@@ -61,6 +62,10 @@ export class EnergyCustomLegendCard extends LitElement {
 
   /** Raw buckets kept for `legend.total.mode: ratio`, which bypasses the rows */
   private _statistics: Statistics = {};
+  /** Kept alongside `_statistics` so rows can be rebuilt without refetching */
+  private _metadata: StatisticsMetadata = {};
+  /** Tracked so a system-triggered theme flip can rebuild rows without a fetch */
+  private _darkMode = false;
   private _wrappedCard?: LovelaceCardElement;
   private _links = new LinkController(() => this.requestUpdate());
 
@@ -86,6 +91,7 @@ export class EnergyCustomLegendCard extends LitElement {
     this._error = undefined;
     this._rows = [];
     this._statistics = {};
+    this._metadata = {};
 
     this._links.configure(
       this._config.links,
@@ -209,6 +215,7 @@ export class EnergyCustomLegendCard extends LitElement {
         return; // a newer fetch already landed
       }
       this._statistics = result.statistics;
+      this._metadata = result.metadata;
       this._rows = buildRows(config.entities, result.statistics, result.metadata, this.hass);
       this._error = undefined;
     } catch (err) {
@@ -233,6 +240,17 @@ export class EnergyCustomLegendCard extends LitElement {
       const previous = changedProps.get("hass") as HomeAssistant | undefined;
       if (!previous && this.hass) {
         this._restartTimespan();
+      }
+
+      // Swatch colors may differ per theme mode (`color: {light, dark}`); a
+      // system-triggered flip changes `hass.themes.darkMode` without any other
+      // config change, so rows are rebuilt in place instead of refetched.
+      const darkMode = isDarkMode(this.hass);
+      if (darkMode !== this._darkMode) {
+        this._darkMode = darkMode;
+        if (this._config && this._rows.length) {
+          this._rows = buildRows(this._config.entities, this._statistics, this._metadata, this.hass);
+        }
       }
     }
     if (changedProps.has("layout") && this._wrappedCard) {
@@ -357,7 +375,7 @@ export class EnergyCustomLegendCard extends LitElement {
     const precision = config.precision ?? DEFAULT_PRECISION;
     const showUnit = config.show_unit !== false;
     const unit = showUnit && row.unit ? ` ${row.unit}` : "";
-    const noValues = isExcludedFromValues(row, config);
+    const noValues = isExcludedFromValues(row);
 
     return html`
       <div

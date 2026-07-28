@@ -1,5 +1,5 @@
 /**
- * Grouping, ordering and the closing total row.
+ * Grouping and the closing total row.
  *
  * Hidden rows are excluded from the `sum` total, mirroring the behaviour of the
  * legend in Home Assistant's own energy cards. The `ratio` total is computed
@@ -25,30 +25,7 @@ function filterHideZero(rows: LegendRow[], config: LegendConfig): LegendRow[] {
   return config.hide_zero ? rows.filter((row) => !(row.count === 0 || row.sum === 0)) : rows;
 }
 
-/**
- * Reorders rows per `config.order`. Rows matching an earlier selector come
- * first; rows matching none keep their relative order and are appended last.
- */
-function applyOrder(rows: LegendRow[], config: LegendConfig): LegendRow[] {
-  const order = config.order;
-  if (!order?.length) {
-    return rows;
-  }
-  const orderIndex = (row: LegendRow): number => {
-    const index = order.findIndex((selector) => matchesSelector(row, selector));
-    return index === -1 ? order.length : index;
-  };
-  return [...rows].sort((a, b) => orderIndex(a) - orderIndex(b));
-}
-
-function finalizeRows(rows: LegendRow[], config: LegendConfig): LegendRow[] {
-  return applyOrder(filterHideZero(rows, config), config);
-}
-
-function resolveGroupConfig(
-  base: LegendConfig,
-  override: LegendGroupOverrides & { no_values?: string[] }
-): LegendConfig {
+function resolveGroupConfig(base: LegendConfig, override: LegendGroupOverrides): LegendConfig {
   return {
     columns: override.columns ?? base.columns,
     precision: override.precision ?? base.precision,
@@ -56,8 +33,6 @@ function resolveGroupConfig(
     hide_zero: override.hide_zero ?? base.hide_zero,
     show_headers: override.show_headers ?? base.show_headers,
     total: override.total ?? base.total,
-    no_values: [...(base.no_values ?? []), ...(override.no_values ?? [])],
-    order: override.order ?? base.order,
   };
 }
 
@@ -72,7 +47,7 @@ export function buildLegendGroups(allRows: LegendRow[], config: LegendConfig): L
   const groupConfigs = config.groups ?? [];
 
   if (!groupConfigs.length) {
-    return [{ config, rows: finalizeRows(allRows, config) }];
+    return [{ config, rows: filterHideZero(allRows, config) }];
   }
 
   const claimed = new Set<string>();
@@ -89,11 +64,11 @@ export function buildLegendGroups(allRows: LegendRow[], config: LegendConfig): L
       return isMatch;
     });
     const resolvedConfig = resolveGroupConfig(config, group);
-    return { name: group.name, config: resolvedConfig, rows: finalizeRows(matched, resolvedConfig) };
+    return { name: group.name, config: resolvedConfig, rows: filterHideZero(matched, resolvedConfig) };
   });
 
   const remainder = allRows.filter((row) => !claimed.has(row.id));
-  results.push({ config, rows: finalizeRows(remainder, config) });
+  results.push({ config, rows: filterHideZero(remainder, config) });
 
   return results;
 }
@@ -113,9 +88,8 @@ export function matchesSelector(row: LegendRow, selector: string): boolean {
 }
 
 /** True when a row renders without value columns and is excluded from totals */
-export function isExcludedFromValues(row: LegendRow, config: LegendConfig): boolean {
-  const selectors = config.no_values ?? [];
-  return selectors.some((selector) => matchesSelector(row, selector));
+export function isExcludedFromValues(row: LegendRow): boolean {
+  return row.noValues;
 }
 
 /** Sums one statistic's raw buckets for the given type, ignoring gaps */
@@ -175,7 +149,7 @@ export function computeTotal(
   }
 
   // mode "sum" (default)
-  const rows = visibleRows.filter((row) => !isExcludedFromValues(row, config));
+  const rows = visibleRows.filter((row) => !isExcludedFromValues(row));
   const precision = config.precision ?? DEFAULT_PRECISION;
   const value = rows.reduce((sum, row) => sum + row.sum, 0);
   const units = new Set(rows.map((row) => row.unit).filter((unit) => unit));

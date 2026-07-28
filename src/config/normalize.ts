@@ -9,10 +9,14 @@
 
 import {
   ALL_AGGREGATION_PERIODS,
+  ALL_CALCULATION_OPERATIONS,
   ALL_LEGEND_COLUMNS,
   ALL_RELATIVE_PERIODS,
   ALL_STAT_TYPES,
   AggregationSetting,
+  CalculationOperation,
+  CalculationTerm,
+  ColorConfig,
   EnergyCustomLegendCardConfig,
   EntityConfig,
   LegendColumn,
@@ -28,19 +32,47 @@ const LINK_MODES: LinkMode[] = ["chart", "entity", "event", "none"];
 
 export const DEFAULT_PRECISION = 2;
 
+/** One calculation term with every default filled in */
+export interface ResolvedTerm {
+  /** Undefined for a constant term */
+  statisticId?: string;
+  /** Only meaningful without `statisticId` */
+  constant: number;
+  /** Undefined means "use the row's stat type" */
+  statType?: StatType;
+  operation: CalculationOperation;
+  multiply: number;
+  add: number;
+  clipMin?: number;
+  clipMax?: number;
+}
+
+export interface ResolvedCalculation {
+  terms: ResolvedTerm[];
+  initialValue: number;
+  unit?: string;
+}
+
 /** One entity row with everything resolved that does not need `hass` */
 export interface ResolvedEntity {
   key: string;
-  /** Always at least one id; several are summed bucket by bucket */
+  /**
+   * Every statistic this row needs fetched — the single `statistic_id`, or every
+   * statistic referenced by the `calculation` terms, in first-use order. Empty
+   * only for a calculation made of constants alone.
+   */
   statisticIds: string[];
+  /** Set when the row is computed instead of read from a single statistic */
+  calculation?: ResolvedCalculation;
   name?: string;
-  color?: string;
+  color?: ColorConfig;
   statType: StatType;
   unit?: string;
   multiply: number;
   add: number;
   hiddenByDefault: boolean;
   link: string;
+  noValues: boolean;
 }
 
 export interface ResolvedConfig {
@@ -73,43 +105,137 @@ function numberOr(value: unknown, fallback: number, field: string): number {
   return value;
 }
 
+function optionalNumber(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  return numberOr(value, 0, field);
+}
+
 /**
- * Normalizes one entity row. `statistic_id` and `statistic_ids` are folded into
- * a single list so everything downstream only deals with the list form.
+ * Normalizes `entities[].color`. Accepts a plain string or a `{light, dark}`
+ * object; anything else (including an object with neither field set) falls
+ * back to `undefined`, which leaves the row on the built-in palette rather
+ * than failing the whole config over a malformed color.
+ */
+function resolveColorConfig(value: unknown): ColorConfig | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value && typeof value === "object") {
+    const light = (value as Record<string, unknown>).light;
+    const dark = (value as Record<string, unknown>).dark;
+    if (typeof light === "string" || typeof dark === "string") {
+      return {
+        light: typeof light === "string" ? light : undefined,
+        dark: typeof dark === "string" ? dark : undefined,
+      };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Normalizes one calculation term. A term without a `statistic_id` is a
+ * constant; `constant` itself defaults to 0, so a term that carries neither is
+ * a no-op rather than a config error.
+ */
+function resolveTerm(term: CalculationTerm, field: string): ResolvedTerm {
+  if (!term || typeof term !== "object") {
+    fail(`\`${field}\` must be an object`);
+  }
+
+  const statisticId =
+    typeof term.statistic_id === "string" && term.statistic_id.trim()
+      ? term.statistic_id.trim()
+      : undefined;
+
+  return {
+    statisticId,
+    constant: numberOr(term.constant, 0, `${field}.constant`),
+    statType: oneOf(term.stat_type, ALL_STAT_TYPES, `${field}.stat_type`),
+    operation:
+      oneOf(term.operation, ALL_CALCULATION_OPERATIONS, `${field}.operation`) ?? "add",
+    multiply: numberOr(term.multiply, 1, `${field}.multiply`),
+    add: numberOr(term.add, 0, `${field}.add`),
+    clipMin: optionalNumber(term.clip_min, `${field}.clip_min`),
+    clipMax: optionalNumber(term.clip_max, `${field}.clip_max`),
+  };
+}
+
+/**
+ * Normalizes one entity row: either a single `statistic_id` or a `calculation`.
+ * Both end up with a `statisticIds` list of everything that needs fetching, so
+ * only `buildRows()` cares about the difference.
  */
 function resolveEntity(entity: EntityConfig, index: number): ResolvedEntity {
   if (!entity || typeof entity !== "object") {
     fail(`\`entities[${index}]\` must be an object`);
   }
 
-  const ids: string[] = [];
-  if (typeof entity.statistic_id === "string" && entity.statistic_id.trim()) {
-    ids.push(entity.statistic_id.trim());
-  }
-  if (Array.isArray(entity.statistic_ids)) {
-    entity.statistic_ids.forEach((id) => {
-      if (typeof id === "string" && id.trim()) {
-        ids.push(id.trim());
-      }
-    });
-  }
-  if (!ids.length) {
-    fail(`\`entities[${index}]\` needs a \`statistic_id\` or \`statistic_ids\``);
+  const statisticId =
+    typeof entity.statistic_id === "string" && entity.statistic_id.trim()
+      ? entity.statistic_id.trim()
+      : undefined;
+  const calculationConfig = entity.calculation;
+
+  if (statisticId && calculationConfig) {
+    fail(`\`entities[${index}]\` must not set both \`statistic_id\` and \`calculation\``);
   }
 
-  const key = typeof entity.key === "string" && entity.key.trim() ? entity.key.trim() : ids[0];
+  let calculation: ResolvedCalculation | undefined;
+  const ids: string[] = [];
+
+  if (calculationConfig) {
+    if (typeof calculationConfig !== "object" || !Array.isArray(calculationConfig.terms)) {
+      fail(`\`entities[${index}].calculation\` needs a \`terms\` list`);
+    }
+    if (!calculationConfig.terms.length) {
+      fail(`\`entities[${index}].calculation.terms\` must not be empty`);
+    }
+
+    const terms = calculationConfig.terms.map((term, termIndex) =>
+      resolveTerm(term, `entities[${index}].calculation.terms[${termIndex}]`)
+    );
+    terms.forEach((term) => {
+      if (term.statisticId && !ids.includes(term.statisticId)) {
+        ids.push(term.statisticId);
+      }
+    });
+
+    calculation = {
+      terms,
+      initialValue: numberOr(
+        calculationConfig.initial_value,
+        0,
+        `entities[${index}].calculation.initial_value`
+      ),
+      unit: typeof calculationConfig.unit === "string" ? calculationConfig.unit : undefined,
+    };
+  } else if (statisticId) {
+    ids.push(statisticId);
+  } else {
+    fail(`\`entities[${index}]\` needs a \`statistic_id\` or a \`calculation\``);
+  }
+
+  const key =
+    typeof entity.key === "string" && entity.key.trim()
+      ? entity.key.trim()
+      : ids[0] ?? `entity_${index}`;
 
   return {
     key,
     statisticIds: ids,
+    calculation,
     name: typeof entity.name === "string" ? entity.name : undefined,
-    color: typeof entity.color === "string" ? entity.color : undefined,
+    color: resolveColorConfig(entity.color),
     statType: oneOf(entity.stat_type, ALL_STAT_TYPES, `entities[${index}].stat_type`) ?? "change",
     unit: typeof entity.unit === "string" ? entity.unit : undefined,
     multiply: numberOr(entity.multiply, 1, `entities[${index}].multiply`),
     add: numberOr(entity.add, 0, `entities[${index}].add`),
     hiddenByDefault: entity.hidden_by_default === true,
     link: typeof entity.link === "string" && entity.link.trim() ? entity.link.trim() : key,
+    noValues: entity.no_values === true,
   };
 }
 

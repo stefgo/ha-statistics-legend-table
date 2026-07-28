@@ -13,6 +13,10 @@
  * colors, so a legend placed next to an energy card looks at home without
  * anyone configuring colors.
  */
+import type { HomeAssistant } from "custom-card-helpers";
+
+import type { ColorConfig } from "./config/types";
+
 const PALETTE = [
   "#488fc2", // grid consumption
   "#ff9800", // solar
@@ -29,9 +33,42 @@ const PALETTE = [
 /** Fixed fill opacity applied to every swatch */
 export const SWATCH_FILL_ALPHA = 0.5;
 
+/**
+ * Whether Home Assistant currently renders in dark mode. `darkMode` is not part
+ * of the `custom-card-helpers` types, but is present on the real frontend
+ * object at runtime; this reads it defensively so a rename degrades to "always
+ * light" instead of throwing.
+ */
+export function isDarkMode(hass: HomeAssistant | undefined): boolean {
+  return Boolean((hass?.themes as { darkMode?: boolean } | undefined)?.darkMode);
+}
+
 /** Palette color for the n-th row, wrapping around for long legends */
 export function paletteColor(index: number): string {
   return PALETTE[index % PALETTE.length];
+}
+
+/**
+ * Resolves a row's configured color for the current theme mode. A plain string
+ * is used as-is; `{light, dark}` picks the side matching `darkMode`, falling
+ * back to the other side if that one is unset. No configured color at all
+ * falls back to the palette.
+ */
+export function resolveColor(
+  color: ColorConfig | undefined,
+  darkMode: boolean,
+  index: number
+): string {
+  if (typeof color === "string") {
+    return color;
+  }
+  if (color) {
+    const picked = darkMode ? (color.dark ?? color.light) : (color.light ?? color.dark);
+    if (picked) {
+      return picked;
+    }
+  }
+  return paletteColor(index);
 }
 
 const RGB_HEX = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;

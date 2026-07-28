@@ -116,24 +116,73 @@ Stunde. `Σ` ist davon unberührt. `auto` folgt der Regel von Home Assistant (> 
 | Option              | Typ    | Default | Beschreibung |
 | ------------------- | ------ | ------- | ------------ |
 | `statistic_id`      | String | –       | Statistik-Entität dieser Zeile |
-| `statistic_ids`     | Liste  | –       | Mehrere Statistiken, bucketweise summiert zu **einer** Zeile |
+| `calculation`       | Objekt | –       | Zeile aus mehreren Statistiken/Konstanten berechnen, siehe unten |
 | `key`               | String | `statistic_id` | Stabile ID der Zeile, von `legend`-Selektoren und `link` verwendet |
 | `name`              | String | Statistik-Name | Beschriftung |
-| `color`             | String | Palette | Farbe des Indikators |
+| `color`             | String / Objekt | Palette | Farbe des Indikators, siehe unten |
 | `stat_type`         | String | `change` | `change`, `sum`, `mean`, `min`, `max`, `state` |
 | `unit`              | String | Metadaten | Einheit hinter den Werten |
 | `multiply` / `add`  | Zahl   | `1` / `0` | Lineare Umrechnung je Bucket (`wert * multiply + add`) |
 | `hidden_by_default` | bool   | `false` | Zeile (und ihr Link-Ziel) startet ausgeblendet |
 | `link`              | String | `key`   | Ziel in der gekoppelten Komponente, siehe `link` |
+| `no_values`         | bool   | `false` | Zeile ohne Wertanzeige; fließt nicht in `total: {mode: sum}` ein |
 
-Jede Zeile braucht `statistic_id` **oder** `statistic_ids`. Zwei Zähler, die zusammen eine Zeile
-ergeben sollen:
+`color` akzeptiert entweder eine einzelne Farbe oder `{light: ..., dark: ...}`, um für den
+hellen und dunklen Modus des Dashboards unterschiedliche Farben zu verwenden. Fehlt eine der
+beiden Seiten, wird die andere für beide Modi verwendet:
 
 ```yaml
 entities:
-  - key: grid
+  - statistic_id: sensor.grid_import
     name: Netzbezug
-    statistic_ids: [sensor.grid_import_a, sensor.grid_import_b]
+    color:
+      light: "#488fc2"
+      dark: "#7fb2de"
+```
+
+Die Reihenfolge der Zeilen ergibt sich aus der Reihenfolge der Einträge in `entities`.
+
+#### Berechnete Zeilen
+
+Jede Zeile braucht `statistic_id` **oder** `calculation`. Mit `calculation` wird der Wert der
+Zeile aus mehreren Statistiken und Konstanten berechnet.
+
+| Option          | Typ    | Default | Beschreibung |
+| --------------- | ------ | ------- | ------------ |
+| `terms`         | Liste  | –       | Geordnete Rechenschritte, mindestens einer |
+| `initial_value` | Zahl   | `0`     | Startwert vor dem ersten Term |
+| `unit`          | String | Metadaten der ersten Statistik | Einheit des Ergebnisses |
+
+Jeder Term:
+
+| Option       | Typ    | Default | Beschreibung |
+| ------------ | ------ | ------- | ------------ |
+| `statistic_id` | String | –     | Statistik dieses Terms; ohne sie zählt `constant` |
+| `constant`   | Zahl   | `0`     | Konstanter Operand, alternativ zu `statistic_id` |
+| `operation`  | String | `add`   | `add`, `subtract`, `multiply`, `divide` |
+| `stat_type`  | String | `stat_type` der Zeile | `change`, `sum`, `mean`, `min`, `max`, `state` |
+| `multiply` / `add` | Zahl | `1` / `0` | Lineare Umrechnung des Term-Werts |
+| `clip_min` / `clip_max` | Zahl | – | Begrenzung des Term-Werts nach `multiply`/`add` |
+
+Die Terme werden **in Konfigurationsreihenfolge** angewendet, es gilt keine Punkt-vor-Strich-Regel.
+Gerechnet wird **je Bucket** über die Vereinigung aller Bucket-Zeitpunkte, `Min`/`Max`/`Ø`
+bedeuten also weiterhin „schwächster/stärkster/durchschnittlicher Bucket". Fehlt einer Statistik
+der Wert für einen Bucket, zählt sie dort 0; eine Division durch 0 lässt den betroffenen Bucket
+entfallen. Besteht eine Berechnung nur aus Konstanten, ergibt sie genau einen Wert.
+`entities[].multiply` und `entities[].add` wirken anschließend auf das Ergebnis jedes Buckets.
+
+```yaml
+entities:
+  - key: self_consumption
+    name: Eigenverbrauch
+    calculation:
+      unit: kWh
+      terms:
+        - statistic_id: sensor.pv_produktion
+        - statistic_id: sensor.netzeinspeisung
+          operation: subtract
+        - statistic_id: sensor.batterie_ladung
+          operation: subtract
 ```
 
 ### `legend`
@@ -147,11 +196,11 @@ entities:
 | `show_headers` | bool   | `false` | Spaltenüberschriften (`Σ`, `Min`, `Max`, `Ø`) |
 | `total`        | Objekt | –       | Abschlusszeile, siehe unten |
 | `groups`       | Liste  | –       | Unterteilung in benannte Abschnitte, siehe unten |
-| `no_values`    | Liste  | –       | Zeilen ohne Wertanzeige; fließen nicht in `total: {mode: sum}` ein |
-| `order`        | Liste  | –       | Explizite Reihenfolge; nicht gelistete Zeilen werden hinten angehängt |
 
-**Selektoren** in `no_values`, `order` und `groups[].entities` treffen den `key` einer Zeile oder
-ihren angezeigten `name`.
+`no_values` steht bei der Zeile selbst in `entities[].no_values`, siehe oben.
+
+**Selektoren** in `groups[].entities` treffen den `key` einer Zeile oder ihren angezeigten
+`name`.
 
 #### `legend.total`
 
@@ -187,10 +236,9 @@ legend:
 ```
 
 `name` ist die Überschrift (ohne `name` keine Überschrift), `entities` listet die Selektoren der
-Gruppe. `columns`, `precision`, `show_unit`, `hide_zero`, `show_headers`, `total` und `order`
-überschreiben die gleichnamige Top-Level-Option nur für diese Gruppe; `no_values` wird zur
-Top-Level-Liste **addiert**. Zeilen, die zu keiner Gruppe passen, landen in einer unbenannten
-Restgruppe am Ende — es geht nichts verloren.
+Gruppe. `columns`, `precision`, `show_unit`, `hide_zero`, `show_headers` und `total`
+überschreiben die gleichnamige Top-Level-Option nur für diese Gruppe. Zeilen, die zu keiner
+Gruppe passen, landen in einer unbenannten Restgruppe am Ende — es geht nichts verloren.
 
 ---
 

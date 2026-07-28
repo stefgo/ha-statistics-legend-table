@@ -104,24 +104,82 @@ export interface AggregationConfig {
 /* Entities                                                                    */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A row's swatch color: either a single color used regardless of theme, or an
+ * object giving a separate color per Home Assistant theme mode. Either side of
+ * the object may be omitted; the other side is then used for both modes.
+ */
+export type ColorConfig = string | { light?: string; dark?: string };
+
+/** Operation a calculation term applies to the running result */
+export type CalculationOperation = "add" | "subtract" | "multiply" | "divide";
+
+export const ALL_CALCULATION_OPERATIONS: CalculationOperation[] = [
+  "add",
+  "subtract",
+  "multiply",
+  "divide",
+];
+
+/**
+ * One step of a calculated row. Either a statistic or a `constant`; the value is
+ * transformed by `multiply`/`add`/`clip_*` before `operation` applies it to the
+ * running result.
+ */
+export interface CalculationTerm {
+  /** Statistic read for this term; omit to use `constant` instead */
+  statistic_id?: string;
+  /** Constant operand, used when no `statistic_id` is given. Defaults to 0 */
+  constant?: number;
+  /** Statistic value read per bucket, defaults to the row's `stat_type` */
+  stat_type?: StatType;
+  /** Operation applied to the running result, defaults to `add` */
+  operation?: CalculationOperation;
+  /** Term value is multiplied by this, applied before `add`. Defaults to 1 */
+  multiply?: number;
+  /** Added to the term value after `multiply`. Defaults to 0 */
+  add?: number;
+  /** Lower clamp of the term value, applied after `multiply`/`add` */
+  clip_min?: number;
+  /** Upper clamp of the term value, applied after `multiply`/`add` */
+  clip_max?: number;
+}
+
+/**
+ * A row computed from several statistics. Terms are evaluated in order (no
+ * operator precedence) per recorder bucket, starting from `initial_value`.
+ */
+export interface CalculationConfig {
+  /** Ordered calculation steps; at least one is required */
+  terms: CalculationTerm[];
+  /** Start value before the first term, defaults to 0 */
+  initial_value?: number;
+  /** Unit of the result, defaults to the unit of the first statistic used */
+  unit?: string;
+}
+
 export interface EntityConfig {
-  /** Statistic entity shown in this row */
+  /** Statistic entity shown in this row. Mutually exclusive with `calculation` */
   statistic_id?: string;
   /**
-   * Several statistics combined into one row, summed bucket by bucket. Covers
-   * the common "two grid meters are one line" case without a full expression
-   * language. Mutually exclusive with `statistic_id`.
+   * Row computed from several statistics and constants instead of a single
+   * `statistic_id`. Evaluated bucket by bucket, so `min`/`max`/`avg` keep
+   * meaning what they mean for a plain statistic row.
    */
-  statistic_ids?: string[];
+  calculation?: CalculationConfig;
   /**
    * Stable identifier of this row, used by `legend` selectors and by the link
-   * adapters. Defaults to `statistic_id` (or the first of `statistic_ids`).
+   * adapters. Defaults to `statistic_id` (or the first statistic of a
+   * `calculation`).
    */
   key?: string;
   /** Row label, defaults to the statistic's name from its metadata */
   name?: string;
-  /** Swatch color, defaults to the next color of the built-in palette */
-  color?: string;
+  /**
+   * Swatch color, defaults to the next color of the built-in palette. Pass
+   * `{light: "...", dark: "..."}` to use a different color per theme mode.
+   */
+  color?: ColorConfig;
   /** Statistic value read per bucket, defaults to `change` */
   stat_type?: StatType;
   /** Unit appended to the values, defaults to the unit from the statistic metadata */
@@ -138,6 +196,8 @@ export interface EntityConfig {
    * for `event`. Defaults to the row's `key`.
    */
   link?: string;
+  /** Row renders without value columns; excluded from `total: {mode: sum}` */
+  no_values?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -183,19 +243,12 @@ export interface LegendConfig {
   total?: LegendTotalConfig;
   /** Splits the legend into named sections; unmatched rows form a trailing, unnamed group */
   groups?: LegendGroupConfig[];
-  /** Rows rendered without value columns; excluded from `total: {mode: sum}` */
-  no_values?: string[];
-  /**
-   * Explicit row order. Rows matching an earlier selector are rendered first;
-   * rows matching none keep their original relative order and are appended.
-   */
-  order?: string[];
 }
 
 /** Fields of LegendConfig a group may override */
 export type LegendGroupOverrides = Pick<
   LegendConfig,
-  "columns" | "precision" | "show_unit" | "hide_zero" | "show_headers" | "total" | "order"
+  "columns" | "precision" | "show_unit" | "hide_zero" | "show_headers" | "total"
 >;
 
 export interface LegendGroupConfig extends LegendGroupOverrides {
@@ -203,8 +256,6 @@ export interface LegendGroupConfig extends LegendGroupOverrides {
   name?: string;
   /** Rows matched into this group (selector semantics, see `matchesSelector`) */
   entities?: string[];
-  /** Additional `no_values` selectors, added to the top-level `legend.no_values` */
-  no_values?: string[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -278,6 +329,8 @@ export interface LegendRow {
   count: number;
   /** Target passed to the link adapters, from `EntityConfig.link` */
   link: string;
+  /** From `EntityConfig.no_values` */
+  noValues: boolean;
 }
 
 /** Rendered total row */

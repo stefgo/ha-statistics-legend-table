@@ -118,6 +118,7 @@ the Lovelace editor. Everything else is silently defaulted.
 ## Not implemented yet
 
 - GUI editor (`getConfigElement`) — YAML only.
-- Calculated series with an expression tree (as `energy-custom-graph` has). `statistic_ids`
-  (bucket-wise sum) plus `multiply`/`add` covers the common cases instead.
+- An expression tree for calculated rows. `entities[].calculation` (ordered terms, evaluated
+  bucket-wise without operator precedence, same YAML as `energy-custom-graph`) covers the
+  common cases instead.
 - Compare period (`allow_compare`): values cover the main period only.

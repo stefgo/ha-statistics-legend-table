@@ -8,8 +8,8 @@
 
 import type { HomeAssistant } from "custom-card-helpers";
 
-import { paletteColor, withAlpha, SWATCH_FILL_ALPHA } from "../colors";
-import type { ResolvedEntity } from "../config/normalize";
+import { isDarkMode, resolveColor, withAlpha, SWATCH_FILL_ALPHA } from "../colors";
+import type { ResolvedCalculation, ResolvedEntity } from "../config/normalize";
 import type { LegendRow, StatType } from "../config/types";
 import {
   Statistics,
@@ -25,43 +25,126 @@ function bucketValue(bucket: StatisticValue, statType: StatType): number | undef
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-/**
- * Combines the buckets of one row's statistics into a single value series.
- *
- * With several `statistic_ids` the buckets are added up per bucket start, so
- * two meters covering the same period become one row. Buckets one statistic has
- * and another lacks are treated as zero on the missing side rather than
- * dropping the bucket — the alternative would silently lose energy from the sum.
- */
-function combineValues(
+/** The buckets of a single statistic as a plain value series */
+function plainValues(
   statistics: Statistics,
-  statisticIds: string[],
+  statisticId: string,
   statType: StatType
 ): number[] {
-  if (statisticIds.length === 1) {
-    const buckets = statistics[statisticIds[0]] ?? [];
-    const values: number[] = [];
-    buckets.forEach((bucket) => {
+  const values: number[] = [];
+  (statistics[statisticId] ?? []).forEach((bucket) => {
+    const value = bucketValue(bucket, statType);
+    if (value !== undefined) {
+      values.push(value);
+    }
+  });
+  return values;
+}
+
+function clamp(value: number, min?: number, max?: number): number {
+  let result = value;
+  if (min !== undefined && result < min) {
+    result = min;
+  }
+  if (max !== undefined && result > max) {
+    result = max;
+  }
+  return result;
+}
+
+/**
+ * Evaluates a calculated row into a value series.
+ *
+ * The calculation runs *per bucket*, over the union of all bucket starts of the
+ * statistics involved, so `min`/`max`/`avg` keep meaning "the smallest/largest/
+ * average bucket" just like for a plain statistic row. Terms are applied in
+ * configuration order, without operator precedence.
+ *
+ * A statistic that has no value for a bucket contributes 0 rather than dropping
+ * the bucket — with `subtract` terms the alternative would silently lose whole
+ * buckets from the sum. A division by zero does drop its bucket, since there is
+ * no meaningful value to show for it.
+ *
+ * A calculation made of constants alone has no buckets to iterate; it yields a
+ * single value, so the row still has a defined sum/min/max/avg.
+ */
+export function evaluateCalculation(
+  statistics: Statistics,
+  calculation: ResolvedCalculation,
+  fallbackStatType: StatType
+): number[] {
+  const termValues = calculation.terms.map((term) => {
+    if (!term.statisticId) {
+      return clamp(term.constant * term.multiply + term.add, term.clipMin, term.clipMax);
+    }
+
+    const statType = term.statType ?? fallbackStatType;
+    const byStart = new Map<number, number>();
+    (statistics[term.statisticId] ?? []).forEach((bucket) => {
       const value = bucketValue(bucket, statType);
+      if (value !== undefined) {
+        byStart.set(bucket.start, clamp(value * term.multiply + term.add, term.clipMin, term.clipMax));
+      }
+    });
+    return byStart;
+  });
+
+  const starts = new Set<number>();
+  termValues.forEach((values) => {
+    if (values instanceof Map) {
+      values.forEach((_value, start) => starts.add(start));
+    }
+  });
+
+  const evaluate = (start?: number): number | undefined => {
+    let result = calculation.initialValue;
+    for (let index = 0; index < calculation.terms.length; index += 1) {
+      const values = termValues[index];
+      const value =
+        values instanceof Map ? (start !== undefined ? values.get(start) ?? 0 : 0) : values;
+
+      switch (calculation.terms[index].operation) {
+        case "subtract":
+          result -= value;
+          break;
+        case "multiply":
+          result *= value;
+          break;
+        case "divide":
+          if (value === 0) {
+            return undefined;
+          }
+          result /= value;
+          break;
+        default:
+          result += value;
+          break;
+      }
+    }
+    return Number.isFinite(result) ? result : undefined;
+  };
+
+  if (!starts.size) {
+    // Constants only: a legitimate row with exactly one value. A calculation
+    // that does reference statistics but got no data is an empty row instead,
+    // like any other row whose statistic returned nothing.
+    if (calculation.terms.some((term) => term.statisticId)) {
+      return [];
+    }
+    const value = evaluate();
+    return value === undefined ? [] : [value];
+  }
+
+  const values: number[] = [];
+  [...starts]
+    .sort((a, b) => a - b)
+    .forEach((start) => {
+      const value = evaluate(start);
       if (value !== undefined) {
         values.push(value);
       }
     });
-    return values;
-  }
-
-  const byStart = new Map<number, number>();
-  statisticIds.forEach((id) => {
-    (statistics[id] ?? []).forEach((bucket) => {
-      const value = bucketValue(bucket, statType);
-      if (value === undefined) {
-        return;
-      }
-      byStart.set(bucket.start, (byStart.get(bucket.start) ?? 0) + value);
-    });
-  });
-
-  return [...byStart.entries()].sort((a, b) => a[0] - b[0]).map(([, value]) => value);
+  return values;
 }
 
 /** Builds one legend row per configured entity, in configuration order */
@@ -71,11 +154,17 @@ export function buildRows(
   metadata: StatisticsMetadata,
   hass: HomeAssistant | undefined
 ): LegendRow[] {
-  return entities.map((entity, index) => {
-    const firstId = entity.statisticIds[0];
-    const firstMeta = metadata[firstId];
+  const darkMode = isDarkMode(hass);
 
-    const raw = combineValues(statistics, entity.statisticIds, entity.statType);
+  return entities.map((entity, index) => {
+    const firstId: string | undefined = entity.statisticIds[0];
+    const firstMeta = firstId ? metadata[firstId] : undefined;
+
+    const raw = entity.calculation
+      ? evaluateCalculation(statistics, entity.calculation, entity.statType)
+      : firstId
+        ? plainValues(statistics, firstId, entity.statType)
+        : [];
     const values =
       entity.multiply === 1 && entity.add === 0
         ? raw
@@ -95,20 +184,21 @@ export function buildRows(
     });
 
     const count = values.length;
-    const color = entity.color ?? paletteColor(index);
+    const color = resolveColor(entity.color, darkMode, index);
 
     return {
       id: entity.key,
-      name: entity.name ?? statisticLabel(hass, firstId, firstMeta),
+      name: entity.name ?? (firstId ? statisticLabel(hass, firstId, firstMeta) : entity.key),
       color,
       fillColor: withAlpha(color, SWATCH_FILL_ALPHA),
-      unit: entity.unit ?? statisticUnit(firstMeta),
+      unit: entity.calculation?.unit ?? entity.unit ?? statisticUnit(firstMeta),
       sum,
       min: count ? min : 0,
       max: count ? max : 0,
       avg: count ? sum / count : 0,
       count,
       link: entity.link,
+      noValues: entity.noValues,
     };
   });
 }
@@ -116,7 +206,14 @@ export function buildRows(
 /** Every statistic type any row (or the ratio total) asks for */
 export function collectStatTypes(entities: ResolvedEntity[], totalStatType?: StatType): Set<StatType> {
   const types = new Set<StatType>();
-  entities.forEach((entity) => types.add(entity.statType));
+  entities.forEach((entity) => {
+    types.add(entity.statType);
+    entity.calculation?.terms.forEach((term) => {
+      if (term.statisticId && term.statType) {
+        types.add(term.statType);
+      }
+    });
+  });
   if (totalStatType) {
     types.add(totalStatType);
   }

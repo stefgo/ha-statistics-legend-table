@@ -39,6 +39,17 @@ function findDeep(root: ParentNode | null | undefined, selector: string, depth =
     return undefined;
   }
 
+  // `root` itself may be a custom element whose content lives entirely in its
+  // own shadow root (e.g. the `card:` element on the very first call) — its
+  // light DOM is empty, so the checks below would never look inside it.
+  const ownShadow = (root as unknown as HTMLElement).shadowRoot;
+  if (ownShadow) {
+    const found = findDeep(ownShadow, selector, depth + 1);
+    if (found) {
+      return found;
+    }
+  }
+
   const direct = root.querySelector?.(selector);
   if (direct) {
     return direct;
