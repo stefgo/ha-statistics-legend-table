@@ -18,6 +18,6 @@ window.customCards.push({
   type: CARD_NAME,
   name: "Energy Custom Legend",
   description:
-    "Eigenständige Legende mit Farbe, Name und Statistikwerten je Zeile — optional um eine beliebige andere Karte gelegt und mit ihr verknüpft.",
+    "Standalone legend with color, name and statistic values per row — optionally wrapped around any other card and linked to it.",
   documentationURL: "https://github.com/Thyraz/energy-custom-legend",
 });

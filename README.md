@@ -1,63 +1,62 @@
 # Energy Custom Legend
 
-Eigenständige Home-Assistant-Lovelace-Karte, die eine Legende im Stil der Energie-Karten rendert:
-eine Zeile je Statistik mit Farbindikator, Name und aggregierten Werten, klickbar, darunter
-optional eine Summen- oder Autarkiezeile.
+Standalone Home Assistant Lovelace card that renders a legend in the style of the built-in energy
+cards: one row per statistic with a color indicator, name and aggregated values, clickable, plus an
+optional total or self-sufficiency row underneath.
 
-Die Karte holt ihre Daten **selbst** aus dem Recorder und ist damit von jeder anderen Karte
-unabhängig. Sie kann trotzdem:
+The card fetches its data from the recorder **itself** and is therefore independent of any other
+card. It can nevertheless:
 
-- eine **beliebige andere Lovelace-Karte** über sich darstellen (`card:`) — beide teilen sich
-  dieselbe `ha-card`;
-- beim Klick auf eine Legendenzeile eine **andere Komponente ein-/ausblenden** (`link:`) —
-  über einen von drei austauschbaren Mechanismen.
+- render **any other Lovelace card** above itself (`card:`) — both share the same `ha-card`;
+- **show/hide another component** when a legend row is clicked (`link:`) — through one of three
+  interchangeable mechanisms.
 
 ```
 ┌──────────────────────────────────────┐
-│ Energiefluss                         │
-│  ▁▃▅█▅▃▁  (beliebige Karte)          │
+│ Energy flow                          │
+│  ▁▃▅█▅▃▁  (any card)                 │
 │                                      │
-│  ▬  Netzbezug              12,34 kWh │
-│  ▬  PV-Erzeugung           45,67 kWh │
-│  ▬  Batterie                8,90 kWh │
+│  ▬  Grid import            12.34 kWh │
+│  ▬  Solar production       45.67 kWh │
+│  ▬  Battery                 8.90 kWh │
 │  ────────────────────────────────────│
-│     Autarkie                  78,7 % │
+│     Self-sufficiency          78.7 % │
 └──────────────────────────────────────┘
 ```
 
 ## Installation
 
-1. Dieses Repository als „Custom Repository“ (Kategorie *Lovelace*) in HACS hinzufügen und
-   installieren — oder `dist/energy-custom-legend.js` manuell nach
-   `config/www/community/energy-custom-legend/` kopieren.
-2. Resource eintragen:
+1. Add this repository to HACS as a “custom repository” (category *Lovelace*) and install it — or
+   copy `dist/energy-custom-legend.js` manually to
+   `config/www/community/energy-custom-legend/`.
+2. Register the resource:
 
 ```yaml
 url: /hacsfiles/energy-custom-legend/energy-custom-legend.js
 type: module
 ```
 
-Es gibt **keine** Voraussetzung an andere Karten. `energy-custom-graph`, `power-flow-card-plus`
-& Co. werden nur gebraucht, wenn man sie tatsächlich einbinden möchte.
+There is **no** requirement on any other card. `energy-custom-graph`, `power-flow-card-plus`
+& co. are only needed if you actually want to embed them.
 
-## Minimalbeispiel
+## Minimal example
 
 ```yaml
 type: custom:energy-custom-legend-card
-title: Energiefluss
+title: Energy flow
 timespan:
   mode: energy
 entities:
   - statistic_id: sensor.grid_import
-    name: Netzbezug
+    name: Grid import
     color: "#488fc2"
   - statistic_id: sensor.solar_production
-    name: PV-Erzeugung
+    name: Solar production
     color: "#ff9800"
 legend:
   columns: [sum]
   total:
-    name: Autarkie
+    name: Self-sufficiency
     mode: ratio
     numerator: [sensor.solar_production]
     denominator: [sensor.solar_production, sensor.grid_import]
@@ -65,160 +64,159 @@ legend:
 
 ---
 
-## Konfiguration
+## Configuration
 
-### Top-Level
+### Top level
 
-| Option        | Typ    | Default | Beschreibung |
-| ------------- | ------ | ------- | ------------ |
-| `type`        | String | –       | `custom:energy-custom-legend-card` |
-| `title`       | String | –       | Kartenüberschrift |
-| `card`        | Objekt | –       | Beliebige Lovelace-Karte, oberhalb der Legende gerendert (siehe unten) |
-| `timespan`    | Objekt | `{mode: energy}` | Zeitraum der Statistikabfrage |
-| `aggregation` | Objekt | `{period: auto}` | Bucket-Größe der Statistikabfrage |
-| `entities`    | Liste  | **Pflicht** | Die Zeilen der Legende |
-| `legend`      | Objekt | –       | Darstellung der Legende |
-| `link`        | Objekt / Liste | – | Kopplung an eine andere Komponente |
+| Option        | Type   | Default | Description |
+| ------------- | ------ | ------- | ----------- |
+| `type`        | string | –       | `custom:energy-custom-legend-card` |
+| `title`       | string | –       | Card heading |
+| `card`        | object | –       | Any Lovelace card, rendered above the legend (see below) |
+| `timespan`    | object | `{mode: energy}` | Time range of the statistics query |
+| `aggregation` | object | `{period: auto}` | Bucket size of the statistics query |
+| `entities`    | list   | **required** | The rows of the legend |
+| `legend`      | object | –       | Presentation of the legend |
+| `link`        | object / list | – | Coupling to another component |
 
 ### `timespan`
 
-| Option           | Typ    | Default  | Beschreibung |
-| ---------------- | ------ | -------- | ------------ |
-| `mode`           | String | `energy` | `energy`, `relative` oder `fixed` |
-| `collection_key` | String | –        | Nur `energy`: identifiziert den Datepicker, wenn ein Dashboard mehrere hat |
-| `period`         | String | `day`    | Nur `relative`, siehe unten |
-| `offset`         | Zahl   | `0`      | Nur `relative`: verschiebt um ganze Perioden in die Vergangenheit |
-| `start` / `end`  | String | –        | Nur `fixed`: ISO-8601-Zeitstempel |
+| Option           | Type   | Default  | Description |
+| ---------------- | ------ | -------- | ----------- |
+| `mode`           | string | `energy` | `energy`, `relative` or `fixed` |
+| `collection_key` | string | –        | `energy` only: identifies the date picker when a dashboard has several |
+| `period`         | string | `day`    | `relative` only, see below |
+| `offset`         | number | `0`      | `relative` only: shifts by whole periods into the past |
+| `start` / `end`  | string | –        | `fixed` only: ISO 8601 timestamps |
 
-**`mode: energy`** koppelt die Legende an den Energie-Datepicker des Dashboards. Das ist der
-bequemste Weg, sie mit einer Nachbarkarte synchron zu halten: beide abonnieren denselben
-Datepicker, ohne voneinander zu wissen. Steht auf dem Dashboard kein Energie-Datepicker, fällt
-die Karte automatisch auf „heute“ zurück.
+**`mode: energy`** couples the legend to the dashboard's energy date picker. That is the most
+convenient way to keep it in sync with a neighbouring card: both subscribe to the same date
+picker without knowing about each other. If the dashboard has no energy date picker, the card
+automatically falls back to “today”.
 
-**`mode: relative`** — `period` ist entweder kalendarisch ausgerichtet (`hour`, `day`, `week`,
-`month`, `year` = die aktuelle Stunde / heute / diese Woche / …) oder ein gleitendes Fenster
-bis jetzt (`last_60_minutes`, `last_24_hours`, `last_7_days`, `last_30_days`, `last_12_months`).
-Der Zeitraum wird jede Minute neu aufgelöst.
+**`mode: relative`** — `period` is either calendar aligned (`hour`, `day`, `week`, `month`,
+`year` = the current hour / today / this week / …) or a sliding window up to now
+(`last_60_minutes`, `last_24_hours`, `last_7_days`, `last_30_days`, `last_12_months`).
+The range is re-resolved every minute.
 
 ### `aggregation`
 
-| Option   | Typ    | Default | Beschreibung |
-| -------- | ------ | ------- | ------------ |
-| `period` | String | `auto`  | `auto`, `5minute`, `hour`, `day`, `week`, `month` |
+| Option   | Type   | Default | Description |
+| -------- | ------ | ------- | ----------- |
+| `period` | string | `auto`  | `auto`, `5minute`, `hour`, `day`, `week`, `month` |
 
-Die Bucket-Größe ist nicht nur eine Performance-Frage: `min`/`max`/`avg` werden **je Bucket**
-berechnet. Bei `period: day` ist `Max` also der stärkste Tag, bei `period: hour` die stärkste
-Stunde. `Σ` ist davon unberührt. `auto` folgt der Regel von Home Assistant (> 35 Tage → `month`,
-> 2 Tage → `day`, sonst `hour`).
+The bucket size is not only a performance question: `min`/`max`/`avg` are computed **per bucket**.
+With `period: day`, `Max` is therefore the strongest day; with `period: hour` the strongest
+hour. `Σ` is unaffected by this. `auto` follows Home Assistant's own rule (> 35 days → `month`,
+> 2 days → `day`, otherwise `hour`).
 
 ### `entities`
 
-| Option              | Typ    | Default | Beschreibung |
-| ------------------- | ------ | ------- | ------------ |
-| `statistic_id`      | String | –       | Statistik-Entität dieser Zeile |
-| `calculation`       | Objekt | –       | Zeile aus mehreren Statistiken/Konstanten berechnen, siehe unten |
-| `key`               | String | `statistic_id` | Stabile ID der Zeile, von `legend`-Selektoren und `link` verwendet |
-| `name`              | String | Statistik-Name | Beschriftung |
-| `color`             | String / Objekt | Palette | Farbe des Indikators, siehe unten |
-| `stat_type`         | String | `change` | `change`, `sum`, `mean`, `min`, `max`, `state` |
-| `unit`              | String | Metadaten | Einheit hinter den Werten |
-| `multiply` / `add`  | Zahl   | `1` / `0` | Lineare Umrechnung je Bucket (`wert * multiply + add`) |
-| `hidden_by_default` | bool   | `false` | Zeile (und ihr Link-Ziel) startet ausgeblendet |
-| `link`              | String / Liste | `key` | Ziel(e) in der gekoppelten Komponente, siehe `link` |
-| `no_values`         | bool   | `false` | Zeile ohne Wertanzeige; fließt nicht in `total: {mode: sum}` ein |
+| Option              | Type   | Default | Description |
+| ------------------- | ------ | ------- | ----------- |
+| `statistic_id`      | string | –       | Statistic entity of this row |
+| `calculation`       | object | –       | Compute the row from several statistics/constants, see below |
+| `key`               | string | `statistic_id` | Stable ID of the row, used by `legend` selectors and `link` |
+| `name`              | string | statistic name | Label |
+| `color`             | string / object | palette | Color of the indicator, see below |
+| `stat_type`         | string | `change` | `change`, `sum`, `mean`, `min`, `max`, `state` |
+| `unit`              | string | metadata | Unit shown after the values |
+| `multiply` / `add`  | number | `1` / `0` | Linear conversion per bucket (`value * multiply + add`) |
+| `hidden_by_default` | bool   | `false` | Row (and its link target) starts hidden |
+| `link`              | string / list | `key` | Target(s) in the coupled component, see `link` |
+| `no_values`         | bool   | `false` | Row without value display; does not feed into `total: {mode: sum}` |
 
-`color` akzeptiert entweder eine einzelne Farbe oder `{light: ..., dark: ...}`, um für den
-hellen und dunklen Modus des Dashboards unterschiedliche Farben zu verwenden. Fehlt eine der
-beiden Seiten, wird die andere für beide Modi verwendet:
+`color` accepts either a single color or `{light: ..., dark: ...}`, to use different colors for
+the dashboard's light and dark mode. If one of the two sides is missing, the other is used for
+both modes:
 
 ```yaml
 entities:
   - statistic_id: sensor.grid_import
-    name: Netzbezug
+    name: Grid import
     color:
       light: "#488fc2"
       dark: "#7fb2de"
 ```
 
-Die Reihenfolge der Zeilen ergibt sich aus der Reihenfolge der Einträge in `entities`.
+The order of the rows follows the order of the entries in `entities`.
 
-#### Berechnete Zeilen
+#### Calculated rows
 
-Jede Zeile braucht `statistic_id` **oder** `calculation`. Mit `calculation` wird der Wert der
-Zeile aus mehreren Statistiken und Konstanten berechnet.
+Every row needs `statistic_id` **or** `calculation`. With `calculation`, the value of the row is
+computed from several statistics and constants.
 
-| Option          | Typ    | Default | Beschreibung |
-| --------------- | ------ | ------- | ------------ |
-| `terms`         | Liste  | –       | Geordnete Rechenschritte, mindestens einer |
-| `initial_value` | Zahl   | `0`     | Startwert vor dem ersten Term |
-| `unit`          | String | Metadaten der ersten Statistik | Einheit des Ergebnisses |
+| Option          | Type   | Default | Description |
+| --------------- | ------ | ------- | ----------- |
+| `terms`         | list   | –       | Ordered calculation steps, at least one |
+| `initial_value` | number | `0`     | Starting value before the first term |
+| `unit`          | string | metadata of the first statistic | Unit of the result |
 
-Jeder Term:
+Each term:
 
-| Option       | Typ    | Default | Beschreibung |
-| ------------ | ------ | ------- | ------------ |
-| `statistic_id` | String | –     | Statistik dieses Terms; ohne sie zählt `constant` |
-| `constant`   | Zahl   | `0`     | Konstanter Operand, alternativ zu `statistic_id` |
-| `operation`  | String | `add`   | `add`, `subtract`, `multiply`, `divide` |
-| `stat_type`  | String | `stat_type` der Zeile | `change`, `sum`, `mean`, `min`, `max`, `state` |
-| `multiply` / `add` | Zahl | `1` / `0` | Lineare Umrechnung des Term-Werts |
-| `clip_min` / `clip_max` | Zahl | – | Begrenzung des Term-Werts nach `multiply`/`add` |
+| Option       | Type   | Default | Description |
+| ------------ | ------ | ------- | ----------- |
+| `statistic_id` | string | –     | Statistic of this term; without it, `constant` counts |
+| `constant`   | number | `0`     | Constant operand, as an alternative to `statistic_id` |
+| `operation`  | string | `add`   | `add`, `subtract`, `multiply`, `divide` |
+| `stat_type`  | string | the row's `stat_type` | `change`, `sum`, `mean`, `min`, `max`, `state` |
+| `multiply` / `add` | number | `1` / `0` | Linear conversion of the term value |
+| `clip_min` / `clip_max` | number | – | Clamping of the term value after `multiply`/`add` |
 
-Die Terme werden **in Konfigurationsreihenfolge** angewendet, es gilt keine Punkt-vor-Strich-Regel.
-Gerechnet wird **je Bucket** über die Vereinigung aller Bucket-Zeitpunkte, `Min`/`Max`/`Ø`
-bedeuten also weiterhin „schwächster/stärkster/durchschnittlicher Bucket". Fehlt einer Statistik
-der Wert für einen Bucket, zählt sie dort 0; eine Division durch 0 lässt den betroffenen Bucket
-entfallen. Besteht eine Berechnung nur aus Konstanten, ergibt sie genau einen Wert.
-`entities[].multiply` und `entities[].add` wirken anschließend auf das Ergebnis jedes Buckets.
+The terms are applied **in configuration order**; there is no operator precedence.
+Calculation happens **per bucket** over the union of all bucket timestamps, so `Min`/`Max`/`Ø`
+still mean “weakest/strongest/average bucket”. If a statistic has no value for a bucket, it
+counts as 0 there; a division by 0 drops the affected bucket. If a calculation consists only of
+constants, it yields exactly one value. `entities[].multiply` and `entities[].add` are then
+applied to the result of each bucket.
 
 ```yaml
 entities:
   - key: self_consumption
-    name: Eigenverbrauch
+    name: Self-consumption
     calculation:
       unit: kWh
       terms:
-        - statistic_id: sensor.pv_produktion
-        - statistic_id: sensor.netzeinspeisung
+        - statistic_id: sensor.pv_production
+        - statistic_id: sensor.grid_export
           operation: subtract
-        - statistic_id: sensor.batterie_ladung
+        - statistic_id: sensor.battery_charge
           operation: subtract
 ```
 
 ### `legend`
 
-| Option         | Typ    | Default | Beschreibung |
-| -------------- | ------ | ------- | ------------ |
-| `columns`      | Liste  | `[sum]` | Wertspalten je Zeile, Kombination aus `sum`, `min`, `max`, `avg` |
-| `precision`    | Zahl   | `2`     | Nachkommastellen |
-| `show_unit`    | bool   | `true`  | Einheit hinter dem Wert anzeigen |
-| `hide_zero`    | bool   | `false` | Zeilen ohne Werte bzw. mit Summe 0 ausblenden |
-| `show_headers` | bool   | `false` | Spaltenüberschriften (`Σ`, `Min`, `Max`, `Ø`) |
-| `total`        | Objekt | –       | Abschlusszeile, siehe unten |
-| `groups`       | Liste  | –       | Unterteilung in benannte Abschnitte, siehe unten |
+| Option         | Type   | Default | Description |
+| -------------- | ------ | ------- | ----------- |
+| `columns`      | list   | `[sum]` | Value columns per row, any combination of `sum`, `min`, `max`, `avg` |
+| `precision`    | number | `2`     | Decimal places |
+| `show_unit`    | bool   | `true`  | Show the unit after the value |
+| `hide_zero`    | bool   | `false` | Hide rows without values or with a sum of 0 |
+| `show_headers` | bool   | `false` | Column headers (`Σ`, `Min`, `Max`, `Ø`) |
+| `total`        | object | –       | Closing row, see below |
+| `groups`       | list   | –       | Split into named sections, see below |
 
-`no_values` steht bei der Zeile selbst in `entities[].no_values`, siehe oben.
+`no_values` is set on the row itself in `entities[].no_values`, see above.
 
-**Selektoren** in `groups[].entities` treffen den `key` einer Zeile oder ihren angezeigten
-`name`.
+**Selectors** in `groups[].entities` match a row's `key` or its displayed `name`.
 
 #### `legend.total`
 
-| Option        | Typ    | Default               | Beschreibung |
-| ------------- | ------ | --------------------- | ------------ |
-| `mode`        | String | `sum`                 | `sum`, `ratio` oder `none` |
-| `name`        | String | `Gesamt` / `Autarkie` | Beschriftung |
-| `numerator`   | Liste  | –                     | Nur `ratio`: `statistic_id`s im Zähler |
-| `denominator` | Liste  | –                     | Nur `ratio`: `statistic_id`s im Nenner |
-| `stat_type`   | String | `change`              | Nur `ratio` |
-| `precision`   | Zahl   | `legend.precision` (bei `ratio`: `1`) | Nachkommastellen |
-| `unit`        | String | Zeileneinheit / `%`   | Einheit hinter dem Wert |
+| Option        | Type   | Default                          | Description |
+| ------------- | ------ | -------------------------------- | ----------- |
+| `mode`        | string | `sum`                            | `sum`, `ratio` or `none` |
+| `name`        | string | localized “Total” / “Self-sufficiency” | Label |
+| `numerator`   | list   | –                                | `ratio` only: `statistic_id`s in the numerator |
+| `denominator` | list   | –                                | `ratio` only: `statistic_id`s in the denominator |
+| `stat_type`   | string | `change`                         | `ratio` only |
+| `precision`   | number | `legend.precision` (`1` for `ratio`) | Decimal places |
+| `unit`        | string | row unit / `%`                   | Unit shown after the value |
 
-**`mode: sum`** summiert die *sichtbaren* Zeilen — ausgeblendete zählen nicht mit.
+**`mode: sum`** sums the *visible* rows — hidden ones do not count.
 
-**`mode: ratio`** rechnet direkt mit den rohen Statistikwerten der genannten `statistic_id`s,
-unabhängig von `entities`. Das funktioniert deshalb auch für Entitäten, die gar keine eigene
-Zeile haben, und ist unabhängig davon, welche Zeilen gerade ausgeblendet sind.
+**`mode: ratio`** computes directly from the raw statistic values of the named `statistic_id`s,
+independently of `entities`. That is why it also works for entities that have no row of their
+own, and why it is unaffected by which rows are currently hidden.
 
 #### `legend.groups`
 
@@ -226,31 +224,31 @@ Zeile haben, und ist unabhängig davon, welche Zeilen gerade ausgeblendet sind.
 legend:
   columns: [sum]
   groups:
-    - name: Erzeugung
+    - name: Production
       entities: [sensor.solar_production, battery_discharge]
-    - name: Verbrauch
+    - name: Consumption
       entities: [sensor.grid_import]
       columns: [sum, avg]
       total:
         mode: sum
 ```
 
-`name` ist die Überschrift (ohne `name` keine Überschrift), `entities` listet die Selektoren der
-Gruppe. `columns`, `precision`, `show_unit`, `hide_zero`, `show_headers` und `total`
-überschreiben die gleichnamige Top-Level-Option nur für diese Gruppe. Zeilen, die zu keiner
-Gruppe passen, landen in einer unbenannten Restgruppe am Ende — es geht nichts verloren.
+`name` is the heading (no `name` means no heading), `entities` lists the group's selectors.
+`columns`, `precision`, `show_unit`, `hide_zero`, `show_headers` and `total` override the
+top-level option of the same name for this group only. Rows that match no group end up in an
+unnamed remainder group at the end — nothing is lost.
 
 ---
 
-## Andere Karte einbinden: `card`
+## Embedding another card: `card`
 
-`card` nimmt eine **beliebige** Lovelace-Kartenkonfiguration und rendert sie oberhalb der
-Legende innerhalb derselben `ha-card`. Die Karte wird über die Lovelace-Helper erzeugt, es gibt
-also keine Liste unterstützter Karten:
+`card` takes **any** Lovelace card configuration and renders it above the legend inside the same
+`ha-card`. The card is created through the Lovelace helpers, so there is no list of supported
+cards:
 
 ```yaml
 type: custom:energy-custom-legend-card
-title: Energiefluss
+title: Energy flow
 card:
   type: custom:energy-custom-graph-card
   hide_legend: true
@@ -261,58 +259,56 @@ card:
       chart_type: bar
 entities:
   - statistic_id: sensor.grid_import
-    name: Netzbezug
+    name: Grid import
 ```
 
-Die Konfiguration der inneren Karte wird **unverändert** durchgereicht — Optionen wie
-`hide_legend`, `chart_height` oder `y_axes` stehen dort, wo sie hingehören, nämlich im `card:`-
-Block. Die eigene `ha-card` der inneren Karte wird optisch neutralisiert, damit Graph und
-Legende auf einer Fläche sitzen.
+The inner card's configuration is passed through **untouched** — options such as `hide_legend`,
+`chart_height` or `y_axes` belong where they belong, namely in the `card:` block. The inner
+card's own `ha-card` is visually neutralized so that graph and legend sit on one surface.
 
-`card` ist optional. Ohne den Block ist dies eine reine Legendenkarte, die man frei in einem
-`vertical-stack` oder Grid platzieren kann.
+`card` is optional. Without that block this is a pure legend card that you can place freely in a
+`vertical-stack` or grid.
 
 ---
 
-## Kopplung: `link`
+## Coupling: `link`
 
-`link` legt fest, was ein Klick auf eine Legendenzeile außerhalb der Karte bewirkt. `link` darf
-ein einzelner Block oder eine Liste sein; bei einer Liste feuern alle Mechanismen gleichzeitig.
-Ohne `link` blendet die Legende nur ihre eigene Zeile aus (was auch `total: {mode: sum}`
-beeinflusst).
+`link` defines what a click on a legend row does outside the card. `link` may be a single block
+or a list; with a list, all mechanisms fire at once. Without `link`, the legend only hides its
+own row (which also affects `total: {mode: sum}`).
 
-| Option         | Typ    | Default                | Beschreibung |
-| -------------- | ------ | ---------------------- | ------------ |
-| `mode`         | String | `none`                 | `chart`, `entity`, `event` oder `none` |
-| `target`       | String | `card`                 | Nur `chart`: `card` oder ein CSS-Selektor |
-| `service`      | String | `homeassistant.toggle` | Nur `entity` |
-| `hidden_state` | String | `off`                  | Nur `entity`: welcher Zustand als „ausgeblendet“ gilt |
-| `link_id`      | String | –                      | Nur `event`: identifiziert diese Legende in den Events |
+| Option         | Type   | Default                | Description |
+| -------------- | ------ | ---------------------- | ----------- |
+| `mode`         | string | `none`                 | `chart`, `entity`, `event` or `none` |
+| `target`       | string | `card`                 | `chart` only: `card` or a CSS selector |
+| `service`      | string | `homeassistant.toggle` | `entity` only |
+| `hidden_state` | string | `off`                  | `entity` only: which state counts as “hidden” |
+| `link_id`      | string | –                      | `event` only: identifies this legend in the events |
 
-Welche Zeile welches Ziel anspricht, steht bei der Zeile selbst in `entities[].link`
-(Default: der `key` der Zeile). `entities[].link` darf auch eine **Liste** sein — dann steuert
-eine Legendenzeile mehrere Ziele gleichzeitig:
+Which row addresses which target is set on the row itself in `entities[].link`
+(default: the row's `key`). `entities[].link` may also be a **list** — one legend row then
+controls several targets at once:
 
 ```yaml
 entities:
   - key: pv
-    name: PV gesamt
-    statistic_id: sensor.pv_produktion
+    name: PV total
+    statistic_id: sensor.pv_production
     link:
       - calculation_0
-      - sensor.pv_ueberschuss
+      - sensor.pv_surplus
 ```
 
-Ein Klick setzt alle Ziele auf **denselben** Zustand. Ausgegraut wird die Zeile erst, wenn alle
-Ziele ausgeblendet sind; ist nur ein Teil ausgeblendet (weil jemand direkt im Chart geklickt
-hat), gilt die Zeile als sichtbar und der nächste Klick blendet den Rest mit aus.
+A click sets all targets to the **same** state. The row is greyed out only once all targets are
+hidden; if only some are hidden (because someone clicked directly in the chart), the row counts
+as visible and the next click hides the rest as well.
 
 ### `mode: chart`
 
-Steuert Karten, die den Chart über Home Assistants eigenes `ha-chart-base` rendern — also
-`energy-custom-graph`, die eingebauten Energie-Karten und alles andere darauf Aufbauende. Die
-Kopplung läuft in beide Richtungen: ein Klick in der Legende blendet die Serie im Graphen aus,
-und eine im Graphen ausgeblendete Serie wird in der Legende ausgegraut.
+Controls cards that render their chart through Home Assistant's own `ha-chart-base` — that is,
+`energy-custom-graph`, the built-in energy cards and everything else built on top of it. The
+coupling works in both directions: a click in the legend hides the series in the graph, and a
+series hidden in the graph is greyed out in the legend.
 
 ```yaml
 card:
@@ -326,41 +322,41 @@ link:
   target: card
 entities:
   - statistic_id: sensor.grid_import
-    name: Netzbezug
-    # link: optional — nötig nur, wenn der key nicht auf die Serien-ID passt
+    name: Grid import
+    # link: optional — only needed if the key does not match the series ID
 ```
 
-`entities[].link` wird gegen die Serien-IDs des Charts aufgelöst: exakte Übereinstimmung zuerst,
-sonst **alle** IDs, deren Segmente mit dem Target beginnen. Damit genügt in aller Regel die
-`statistic_id`, auch wenn `energy-custom-graph` intern IDs der Form
-`<statistic_id>:<stat_type>:<chart_type>:<index>` verwendet.
+`entities[].link` is resolved against the chart's series IDs: exact match first, otherwise
+**all** IDs whose segments start with the target. In most cases the `statistic_id` is therefore
+enough, even though `energy-custom-graph` internally uses IDs of the form
+`<statistic_id>:<stat_type>:<chart_type>:<index>`.
 
-Kommt dieselbe `statistic_id` mehrfach im Chart vor, erfasst `link: sensor.x` **alle** diese
-Serien auf einmal; sie werden gemeinsam geschaltet, und die Legendenzeile wird ausgegraut,
-sobald alle ausgeblendet sind. Um gezielt eine davon anzusprechen, nennt man weitere Segmente:
+If the same `statistic_id` appears several times in the chart, `link: sensor.x` captures **all**
+of those series at once; they are toggled together, and the legend row is greyed out as soon as
+all of them are hidden. To address one of them specifically, name further segments:
 
 ```yaml
 entities:
   - statistic_id: sensor.battery_soc
-    name: Ladestand Ø
+    name: State of charge Ø
     stat_type: mean
-    link: sensor.battery_soc:mean         # nur die mean-Serie
+    link: sensor.battery_soc:mean         # only the mean series
   - statistic_id: sensor.battery_soc
-    name: Ladestand Max
+    name: State of charge max
     stat_type: max
-    link: sensor.battery_soc:max:line:3   # bis hin zur vollständigen ID
+    link: sensor.battery_soc:max:line:3   # up to the complete ID
 ```
 
-Die tatsächlichen IDs lassen sich im DevTools-Inspector nachsehen: `ha-chart-base` auswählen und
-`$0.data.map(s => s.id)` ausführen.
+The actual IDs can be looked up in the DevTools inspector: select `ha-chart-base` and run
+`$0.data.map(s => s.id)`.
 
-Berechnete Serien (`calculation:` in `energy-custom-graph`) haben keine `statistic_id`; sie
-heißen dort `calculation_<index>`, wobei `<index>` die **Position der Serie in der `series:`
--Liste** ist (nullbasiert, über alle Serien gezählt). Für die erste Serie also
+Calculated series (`calculation:` in `energy-custom-graph`) have no `statistic_id`; there they
+are called `calculation_<index>`, where `<index>` is the **position of the series in the
+`series:` list** (zero-based, counted across all series). So for the first series,
 `link: calculation_0`.
 
-Steht die Zielkarte nicht in `card:`, sondern als eigene Karte daneben, zeigt `target` per
-CSS-Selektor darauf (die Suche geht durch Shadow-Roots):
+If the target card is not in `card:` but stands next to it as a card of its own, `target` points
+at it with a CSS selector (the search goes through shadow roots):
 
 ```yaml
 link:
@@ -370,10 +366,9 @@ link:
 
 ### `mode: entity`
 
-Der Klick schaltet eine Entität — üblicherweise ein `input_boolean`. Damit lässt sich **jede**
-Karte steuern, auch solche ganz ohne Toggle-API wie `power-flow-card-plus`, indem man sie in
-eine `conditional`-Karte legt. Der Zustand liegt in der Entität und übersteht damit einen
-Reload.
+The click toggles an entity — usually an `input_boolean`. This lets you control **any** card,
+even ones with no toggle API at all such as `power-flow-card-plus`, by putting them inside a
+`conditional` card. The state lives in the entity and therefore survives a reload.
 
 ```yaml
 type: vertical-stack
@@ -390,60 +385,59 @@ cards:
       mode: entity
     entities:
       - statistic_id: sensor.solar_production
-        name: PV-Erzeugung
+        name: Solar production
         link: input_boolean.show_solar
 ```
 
-Eine Zeile gilt als ausgeblendet, solange ihre Entität im Zustand `hidden_state` (Default `off`)
-ist. Wird die Entität woanders geschaltet, folgt die Legende.
+A row counts as hidden as long as its entity is in state `hidden_state` (default `off`). If the
+entity is toggled elsewhere, the legend follows.
 
 ### `mode: event`
 
-Sendet ein CustomEvent auf `window` und hört auf ein Gegen-Event. Gedacht für Karten, die die
-Legende künftig nativ unterstützen, und für eigenes JavaScript.
+Dispatches a CustomEvent on `window` and listens for a counterpart event. Intended for cards that
+support the legend natively in the future, and for your own JavaScript.
 
 ```yaml
 link:
   mode: event
-  link_id: energiefluss
+  link_id: energyflow
 ```
 
-**Gesendet** bei jedem Klick:
+**Dispatched** on every click:
 
 ```js
 window.addEventListener("energy-custom-legend:toggle", (ev) => {
-  ev.detail; // { link_id: "energiefluss", target: "sensor.grid_import", hidden: true }
+  ev.detail; // { link_id: "energyflow", target: "sensor.grid_import", hidden: true }
 });
 ```
 
-**Empfangen**, um der Legende einen von außen bestimmten Zustand mitzuteilen:
+**Received**, to tell the legend a state determined from outside:
 
 ```js
-// einzelnes Ziel
+// single target
 window.dispatchEvent(new CustomEvent("energy-custom-legend:state", {
-  detail: { link_id: "energiefluss", target: "sensor.grid_import", hidden: true },
+  detail: { link_id: "energyflow", target: "sensor.grid_import", hidden: true },
 }));
 
-// oder die komplette Menge ausgeblendeter Ziele
+// or the complete set of hidden targets
 window.dispatchEvent(new CustomEvent("energy-custom-legend:state", {
-  detail: { link_id: "energiefluss", hidden: ["sensor.grid_import"] },
+  detail: { link_id: "energyflow", hidden: ["sensor.grid_import"] },
 }));
 ```
 
-`link_id` muss übereinstimmen, damit mehrere Legenden auf einem Dashboard nebeneinander
-funktionieren.
+`link_id` has to match so that several legends can work side by side on one dashboard.
 
 ---
 
-## Entwicklung
+## Development
 
 ```bash
 npm install
 npm run build     # → dist/energy-custom-legend.js
-npm run watch     # Rebuild bei Änderungen
+npm run watch     # rebuild on change
 npm run typecheck
 ```
 
-## Lizenz
+## License
 
 MIT
