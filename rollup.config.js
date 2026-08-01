@@ -4,6 +4,9 @@ import commonjs from "@rollup/plugin-commonjs";
 import json from "@rollup/plugin-json";
 import replace from "@rollup/plugin-replace";
 import { defineConfig } from "rollup";
+import { createRequire } from "node:module";
+
+const pkg = createRequire(import.meta.url)("./package.json");
 
 export default defineConfig({
   input: "src/index.ts",
@@ -15,6 +18,7 @@ export default defineConfig({
   plugins: [
     replace({
       "process.env.NODE_ENV": JSON.stringify("production"),
+      __CARD_VERSION__: JSON.stringify(pkg.version),
       preventAssignment: true,
     }),
     resolve({
