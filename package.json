@@ -1,6 +1,6 @@
 {
   "name": "energy-custom-legend",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Standalone Home Assistant Lovelace legend card with its own statistics, optionally wrapping and linking to any other card",
   "type": "module",
   "main": "dist/energy-custom-legend.js",

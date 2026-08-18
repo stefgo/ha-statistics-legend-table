@@ -8,9 +8,9 @@ import "./energy-custom-legend-card";
 import { CARD_NAME, CARD_VERSION } from "./version";
 
 console.info(
-  `%c  ${CARD_NAME.toUpperCase()}  \n%c  Version ${CARD_VERSION}  `,
-  "color: #03a9f4; font-weight: bold; background: #1c1c1c",
-  "color: #1c1c1c; font-weight: bold; background: #03a9f4",
+  "%c ENERGY-CUSTOM-LEGEND-CARD %c " + CARD_VERSION + " ",
+  "background-color: #000000; color: #4CAF50; font-weight: bold;",
+  "background-color: #666666; color: #FFFFFF; font-weight: bold;",
 );
 
 window.customCards = window.customCards || [];
