@@ -86,6 +86,12 @@ export interface TimespanConfig {
   start?: string;
   /** `mode: fixed` only: ISO 8601 timestamp, defaults to the end of `start`'s day */
   end?: string;
+  /**
+   * Whether a period selected in a neighbouring `custom-graph-card` overrides
+   * the range above for as long as the selection lasts. Defaults to `true`;
+   * set to `false` for a legend that must always show the configured range.
+   */
+  follow_selection?: boolean;
 }
 
 export interface AggregationConfig {

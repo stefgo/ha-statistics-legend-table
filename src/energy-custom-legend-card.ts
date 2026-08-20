@@ -27,7 +27,12 @@ import { isDarkMode } from "./colors";
 import { buildRows, collectStatTypes, collectStatisticIds } from "./data/aggregate";
 import { subscribeEnergyRange } from "./data/energy-collection";
 import { Statistics, StatisticsMetadata, fetchStatistics } from "./data/statistics";
-import { ResolvedTimespan, periodFor, resolveTimespan } from "./data/timespan";
+import {
+  ResolvedTimespan,
+  periodFor,
+  periodForSelection,
+  resolveTimespan,
+} from "./data/timespan";
 import {
   DEFAULT_PRECISION,
   buildLegendGroups,
@@ -37,6 +42,7 @@ import {
 } from "./legend-stats";
 import { legendStyles } from "./legend-styles";
 import { LinkController } from "./link/controller";
+import { GraphSelection, subscribeGraphSelection } from "./link/graph-selection";
 import { LovelaceCardElement, createWrappedCard } from "./wrapped-card";
 
 const COLUMN_LABELS: Record<LegendColumn, string> = {
@@ -70,9 +76,16 @@ export class EnergyCustomLegendCard extends LitElement {
   private _links = new LinkController(() => this.requestUpdate());
 
   private _unsubscribeEnergy?: () => void;
+  private _unsubscribeSelection?: () => void;
   private _refreshTimer?: number;
   /** Range currently displayed; for `mode: energy` it comes from the date picker */
   private _range?: ResolvedTimespan;
+  /**
+   * Period selected in a neighbouring `custom-graph-card`. While set it takes
+   * the place of `_range` for every value the legend shows; clearing the
+   * selection in the graph brings the configured range back.
+   */
+  private _selection?: ResolvedTimespan;
   /** Guards against an out-of-order fetch overwriting a newer one */
   private _fetchToken = 0;
 
@@ -100,7 +113,10 @@ export class EnergyCustomLegendCard extends LitElement {
         .flatMap((entity) => entity.links)
     );
 
+    this._selection = undefined;
+
     void this._setupWrappedCard(config);
+    this._updateSelectionSubscription();
     this._restartTimespan();
   }
 
@@ -183,12 +199,26 @@ export class EnergyCustomLegendCard extends LitElement {
 
   private _setRange(range: ResolvedTimespan): void {
     this._range = range;
+    // A selection outside the new range is stale — it points into the range
+    // that was just left. The graph clears its own marker on a range switch
+    // too, but the order of the two events is not guaranteed, so the legend
+    // does not rely on it. A selection that still lies inside the new range is
+    // kept, which is what makes a `relative` timespan usable: its window moves
+    // on every refresh without dropping the selection each time.
+    const selection = this._selection;
+    if (
+      selection &&
+      (selection.start.getTime() < range.start.getTime() ||
+        selection.start.getTime() >= range.end.getTime())
+    ) {
+      this._selection = undefined;
+    }
     void this._fetch();
   }
 
   private async _fetch(): Promise<void> {
     const config = this._config;
-    const range = this._range;
+    const range = this._selection ?? this._range;
     if (!config || !range || !this.hass) {
       return;
     }
@@ -201,7 +231,9 @@ export class EnergyCustomLegendCard extends LitElement {
       ratio ? total?.denominator : []
     );
     const statTypes = collectStatTypes(config.entities, ratio ? total?.stat_type ?? "change" : undefined);
-    const period = periodFor(config.raw.aggregation?.period, range);
+    const period = this._selection
+      ? periodForSelection(config.raw.aggregation?.period, range)
+      : periodFor(config.raw.aggregation?.period, range);
 
     const token = ++this._fetchToken;
     try {
@@ -226,6 +258,72 @@ export class EnergyCustomLegendCard extends LitElement {
       }
       this._error = err instanceof Error ? err.message : String(err);
     }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Graph selection                                                         */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * (Un)subscribes to the `custom-graph-selection` event of the card in the
+   * `card:` block, according to `timespan.follow_selection` (defaults to on).
+   */
+  private _updateSelectionSubscription(): void {
+    const follow = this._config?.raw.timespan?.follow_selection !== false;
+    if (!follow) {
+      this._stopSelection();
+      return;
+    }
+    if (this._unsubscribeSelection) {
+      return;
+    }
+    // Bound to this element and to the wrapped card, so only the graph this
+    // legend actually embeds can move its range.
+    this._unsubscribeSelection = subscribeGraphSelection(
+      this,
+      () => this._wrappedCard,
+      (selection) => this._applySelection(selection)
+    );
+  }
+
+  private _stopSelection(): void {
+    this._unsubscribeSelection?.();
+    this._unsubscribeSelection = undefined;
+  }
+
+  /**
+   * Takes over the period a graph reports, or falls back to the configured
+   * range when the selection is cleared. The values are refetched for that
+   * period rather than derived from the ones already held: the graph buckets
+   * on its own axis, so the period may be finer than anything this card has
+   * queried, and a fetch is the only answer that stays correct for `sum`,
+   * `min`/`max`/`avg`, calculated rows and `total.mode: ratio` alike.
+   */
+  private _applySelection(selection: GraphSelection | undefined): void {
+    const next = selection ? this._selectionRange(selection) : undefined;
+
+    const same =
+      next?.start.getTime() === this._selection?.start.getTime() &&
+      next?.end.getTime() === this._selection?.end.getTime();
+    if (same) {
+      return;
+    }
+
+    this._selection = next;
+    void this._fetch();
+  }
+
+  /**
+   * The selected period as a closed range. An open-ended last bucket — the
+   * graph reports no `end` for it — runs to the end of the configured range,
+   * so the still-running bucket shows the values it has so far.
+   */
+  private _selectionRange(selection: GraphSelection): ResolvedTimespan | undefined {
+    const fallbackEnd = this._range?.end ?? new Date();
+    const end = selection.end ?? fallbackEnd;
+    return end.getTime() > selection.start.getTime()
+      ? { start: selection.start, end }
+      : undefined;
   }
 
   /* ---------------------------------------------------------------------- */
@@ -270,6 +368,7 @@ export class EnergyCustomLegendCard extends LitElement {
   public connectedCallback(): void {
     super.connectedCallback();
     if (this._config) {
+      this._updateSelectionSubscription();
       this._restartTimespan();
     }
     this._links.attach(this, this._wrappedCard, this.hass);
@@ -278,6 +377,7 @@ export class EnergyCustomLegendCard extends LitElement {
   public disconnectedCallback(): void {
     super.disconnectedCallback();
     this._stopTimespan();
+    this._stopSelection();
     this._links.detach();
   }
 
