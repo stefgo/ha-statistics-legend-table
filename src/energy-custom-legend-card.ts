@@ -24,8 +24,13 @@ import {
   LegendRow,
 } from "./config/types";
 import { isDarkMode } from "./colors";
-import { buildRows, collectStatTypes, collectStatisticIds } from "./data/aggregate";
-import { subscribeEnergyRange } from "./data/energy-collection";
+import {
+  buildRows,
+  collectRatioTotals,
+  collectStatTypes,
+  collectStatisticIds,
+} from "./data/aggregate";
+import { findEnergyCollection, subscribeEnergyRange } from "./data/energy-collection";
 import { Statistics, StatisticsMetadata, fetchStatistics } from "./data/statistics";
 import {
   ResolvedTimespan,
@@ -54,6 +59,50 @@ const COLUMN_LABELS: Record<LegendColumn, string> = {
 
 /** How often a `relative` timespan is re-resolved and re-fetched */
 const REFRESH_INTERVAL = 60_000;
+
+/* Legend metrics, mirroring `legend-styles.ts`. Only used to estimate how much
+   height the legend adds — see `_legendHeight()`. */
+
+/** One legend line: 14px text at the inherited line-height of 1.6 */
+const LEGEND_LINE_HEIGHT = 22;
+/** `gap` of `.legend` and `.legend-group` */
+const LEGEND_GAP = 16;
+/** `.legend` margin-top plus its bottom padding */
+const LEGEND_PADDING = 24;
+
+/** `--ha-section-grid-row-gap` */
+const GRID_ROW_GAP = 8;
+/** One row of a Home Assistant section grid, including its gap
+    (`--ha-section-grid-row-height` 56px + `GRID_ROW_GAP`). A card spanning n
+    rows is given `n * GRID_ROW_HEIGHT - GRID_ROW_GAP` pixels — the trailing gap
+    falls outside the card. */
+const GRID_ROW_HEIGHT = 64;
+/** Roughly one `getCardSize()` unit in a masonry view */
+const MASONRY_UNIT = 50;
+
+/**
+ * A readable message for anything that can come out of a failed fetch.
+ *
+ * `hass.callWS()` does not reject with an `Error` but with a plain
+ * `{code, message}` object, so the naive `String(err)` produced the useless
+ * `[object Object]` in exactly the situation where the user needs to be told
+ * what went wrong.
+ */
+function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (err && typeof err === "object") {
+    const { message, code } = err as { message?: unknown; code?: unknown };
+    if (typeof message === "string" && message) {
+      return typeof code === "string" && code ? `${message} (${code})` : message;
+    }
+    if (typeof code === "string" && code) {
+      return code;
+    }
+  }
+  return typeof err === "string" && err ? err : "Could not load statistics";
+}
 
 @customElement("energy-custom-legend-card")
 export class EnergyCustomLegendCard extends LitElement {
@@ -168,7 +217,7 @@ export class EnergyCustomLegendCard extends LitElement {
         (range) => this._setRange(range),
         // No energy dashboard on this view: fall back to today so the legend
         // shows data rather than staying empty forever.
-        () => this._setRange(resolveTimespan({ mode: "relative", period: "day" })!)
+        () => this._startEnergyFallback()
       );
       return;
     }
@@ -186,6 +235,34 @@ export class EnergyCustomLegendCard extends LitElement {
         }
       }, REFRESH_INTERVAL);
     }
+  }
+
+  /**
+   * Fallback for `mode: energy` when no energy collection can be found.
+   *
+   * Showing today once and then stopping left the legend frozen: no refresh, so
+   * the values aged for as long as the dashboard stayed open, and past midnight
+   * it showed the wrong day outright. It now behaves like `mode: relative` with
+   * `period: day` — and re-checks for the collection on every tick, so a
+   * dashboard whose energy card only appeared later is picked up instead of
+   * being missed for the rest of the session.
+   */
+  private _startEnergyFallback(): void {
+    const today = () => resolveTimespan({ mode: "relative", period: "day" })!;
+    this._setRange(today());
+
+    if (this._refreshTimer !== undefined) {
+      return;
+    }
+    this._refreshTimer = window.setInterval(() => {
+      const collectionKey = this._config?.raw.timespan?.collection_key;
+      if (this.hass && findEnergyCollection(this.hass, collectionKey)) {
+        // The real thing turned up — hand back over to the date picker.
+        this._restartTimespan();
+        return;
+      }
+      this._setRange(today());
+    }, REFRESH_INTERVAL);
   }
 
   private _stopTimespan(): void {
@@ -223,14 +300,12 @@ export class EnergyCustomLegendCard extends LitElement {
       return;
     }
 
-    const total = config.raw.legend?.total;
-    const ratio = total?.mode === "ratio";
-    const statisticIds = collectStatisticIds(
-      config.entities,
-      ratio ? total?.numerator : [],
-      ratio ? total?.denominator : []
-    );
-    const statTypes = collectStatTypes(config.entities, ratio ? total?.stat_type ?? "change" : undefined);
+    // Both the top-level total and any group override may be a ratio, and each
+    // names its own operands — a group ratio whose statistics went unfetched
+    // rendered a constant 0 %.
+    const ratioTotals = collectRatioTotals(config.raw.legend);
+    const statisticIds = collectStatisticIds(config.entities, ratioTotals);
+    const statTypes = collectStatTypes(config.entities, ratioTotals);
     const period = this._selection
       ? periodForSelection(config.raw.aggregation?.period, range)
       : periodFor(config.raw.aggregation?.period, range);
@@ -256,7 +331,7 @@ export class EnergyCustomLegendCard extends LitElement {
       if (token !== this._fetchToken) {
         return;
       }
-      this._error = err instanceof Error ? err.message : String(err);
+      this._error = describeError(err);
     }
   }
 
@@ -515,22 +590,55 @@ export class EnergyCustomLegendCard extends LitElement {
   /* Sizing                                                                  */
   /* ---------------------------------------------------------------------- */
 
-  /** Rows the legend adds on top of whatever the wrapped card needs */
+  /**
+   * Approximate height in pixels the legend adds on top of the wrapped card.
+   *
+   * Estimated rather than measured because both callers run before layout. The
+   * previous estimate counted half a row per legend row, which assumed a
+   * two-column layout — but `.legend-group` is `flex-direction: column`, so
+   * every row is a line of its own. In a section that under-estimate clipped the
+   * legend outright: a numeric `rows` puts Home Assistant's grid into
+   * `fit-rows`, which pins the card to `rows * 64 - 8` pixels.
+   *
+   * Headings and column headers use a smaller font than the rows but are
+   * counted as full lines. Over-estimating costs some whitespace;
+   * under-estimating costs content.
+   */
+  private _legendHeight(): number {
+    const groups = this._groups().filter((group) => group.rows.length);
+    if (!groups.length) {
+      return 0;
+    }
+
+    const lines = groups.reduce(
+      (sum, group) =>
+        sum +
+        group.rows.length +
+        (group.name ? 1 : 0) +
+        (group.config.show_headers ? 1 : 0) +
+        (group.config.total && group.config.total.mode !== "none" ? 1 : 0),
+      0
+    );
+
+    // n lines carry n-1 gaps between them, plus one more between each pair of
+    // groups (`.legend` and `.legend-group` share the same gap).
+    const gaps = Math.max(0, lines - 1) + Math.max(0, groups.length - 1);
+    return LEGEND_PADDING + lines * LEGEND_LINE_HEIGHT + gaps * LEGEND_GAP;
+  }
+
+  /** Grid rows the legend adds on top of whatever the wrapped card needs */
   private _extraRows(): number {
-    return this._groups().reduce((sum, group) => {
-      if (!group.rows.length) {
-        return sum;
-      }
-      const rowLines = Math.max(1, Math.ceil(group.rows.length / 2));
-      const heading = group.name ? 1 : 0;
-      const totalRow = group.config.total && group.config.total.mode !== "none" ? 1 : 0;
-      return sum + rowLines + heading + totalRow;
-    }, 0);
+    const height = this._legendHeight();
+    // n rows are worth `n * GRID_ROW_HEIGHT - GRID_ROW_GAP` pixels, so the gap
+    // has to be added back before dividing — without it a legend lands one or
+    // two pixels short of a row boundary and is clipped again.
+    return height ? Math.ceil((height + GRID_ROW_GAP) / GRID_ROW_HEIGHT) : 0;
   }
 
   public async getCardSize(): Promise<number> {
     const innerSize = this._wrappedCard ? ((await this._wrappedCard.getCardSize?.()) ?? 6) : 0;
-    return innerSize + this._extraRows();
+    const height = this._legendHeight();
+    return innerSize + (height ? Math.ceil(height / MASONRY_UNIT) : 0);
   }
 
   public getGridOptions(): Record<string, unknown> {
@@ -539,11 +647,18 @@ export class EnergyCustomLegendCard extends LitElement {
     const base = this._wrappedCard ? 6 : 0;
     const rows = typeof innerOptions.rows === "number" ? innerOptions.rows : base;
     const minRows = typeof innerOptions.min_rows === "number" ? innerOptions.min_rows : base;
+    // The wrapped card may cap itself at fewer rows than the legend now needs;
+    // a `max_rows` below `rows` would clip the legend again.
+    const maxRows =
+      typeof innerOptions.max_rows === "number"
+        ? Math.max(innerOptions.max_rows + extra, rows + extra)
+        : undefined;
 
     return {
       ...innerOptions,
       rows: rows + extra,
       min_rows: minRows + extra,
+      ...(maxRows === undefined ? {} : { max_rows: maxRows }),
     };
   }
 
