@@ -69,6 +69,28 @@ const LEGEND_LINE_HEIGHT = 22;
 const LEGEND_GAP = 16;
 /** `.legend` margin-top plus its bottom padding */
 const LEGEND_PADDING = 24;
+/** `row-gap` between the wrapped value lines of a narrow row */
+const LEGEND_VALUE_GAP = 2;
+
+/**
+ * The `title:` heading. Styled by `ha-card` itself, not here: `.card-header`
+ * is slotted into it, and its `::slotted(.card-header)` rule sets
+ * `--ha-font-size-2xl` (24px) at `--ha-line-height-expanded` (2) with a
+ * `--ha-space-3` (12px) top padding. `legend-styles.ts` overrides the bottom
+ * padding to 0, and the `h1` keeps its 0.67em user-agent margins.
+ * 16 + 12 + 48 + 0 + 16. The bottom margin collapses with the legend's own
+ * `margin-top`, which makes this a few pixels generous — the safe direction.
+ */
+const TITLE_HEIGHT = 92;
+
+/** The error banner: one line of text inside the 16px padding of `.notice` */
+const NOTICE_HEIGHT = 54;
+/**
+ * Card width at or below which the values wrap onto their own lines. Mirrors
+ * the `@container ecl-legend (max-width: 368px)` rule in `legend-styles.ts`,
+ * whose 368px is this width minus the legend's horizontal padding.
+ */
+const NARROW_CARD_WIDTH = 400;
 
 /** `--ha-section-grid-row-gap` */
 const GRID_ROW_GAP = 8;
@@ -137,6 +159,13 @@ export class EnergyCustomLegendCard extends LitElement {
   private _selection?: ResolvedTimespan;
   /** Guards against an out-of-order fetch overwriting a newer one */
   private _fetchToken = 0;
+
+  /**
+   * Rendered width of the card, undefined until the first measurement. Decides
+   * whether the legend wraps its values — see `_isNarrow()`.
+   */
+  private _cardWidth?: number;
+  private _resizeObserver?: ResizeObserver;
 
   public static getStubConfig(): EnergyCustomLegendCardConfig {
     return {
@@ -447,6 +476,7 @@ export class EnergyCustomLegendCard extends LitElement {
       this._restartTimespan();
     }
     this._links.attach(this, this._wrappedCard, this.hass);
+    this._startResizeObserver();
   }
 
   public disconnectedCallback(): void {
@@ -454,6 +484,31 @@ export class EnergyCustomLegendCard extends LitElement {
     this._stopTimespan();
     this._stopSelection();
     this._links.detach();
+    this._resizeObserver?.disconnect();
+    this._resizeObserver = undefined;
+  }
+
+  /**
+   * Tracks the card's width so the height estimate knows whether the legend
+   * wraps. Only a crossing of the threshold matters, so a render is requested
+   * for those and not for every pixel of a drag.
+   */
+  private _startResizeObserver(): void {
+    if (this._resizeObserver || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    this._resizeObserver = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect?.width;
+      if (typeof width !== "number" || !width) {
+        return;
+      }
+      const wasNarrow = this._isNarrow();
+      this._cardWidth = width;
+      if (wasNarrow !== this._isNarrow()) {
+        this.requestUpdate();
+      }
+    });
+    this._resizeObserver.observe(this);
   }
 
   /* ---------------------------------------------------------------------- */
@@ -610,34 +665,75 @@ export class EnergyCustomLegendCard extends LitElement {
       return 0;
     }
 
-    const lines = groups.reduce(
-      (sum, group) =>
-        sum +
-        group.rows.length +
-        (group.name ? 1 : 0) +
-        (group.config.show_headers ? 1 : 0) +
-        (group.config.total && group.config.total.mode !== "none" ? 1 : 0),
-      0
-    );
+    const narrow = this._isNarrow();
+    let height = LEGEND_PADDING;
+    let blocks = 0;
 
-    // n lines carry n-1 gaps between them, plus one more between each pair of
-    // groups (`.legend` and `.legend-group` share the same gap).
-    const gaps = Math.max(0, lines - 1) + Math.max(0, groups.length - 1);
-    return LEGEND_PADDING + lines * LEGEND_LINE_HEIGHT + gaps * LEGEND_GAP;
+    groups.forEach((group) => {
+      // Below the container query's threshold every value moves onto a line of
+      // its own beneath the name, and the header row is hidden entirely. A row
+      // is then `1 + columns` lines tall rather than one — with the default
+      // single `sum` column that is already twice the height, and with all four
+      // columns five times.
+      const columns = columnsFor(group.config.columns).length;
+      const rowHeight = narrow
+        ? LEGEND_LINE_HEIGHT + columns * (LEGEND_LINE_HEIGHT + LEGEND_VALUE_GAP)
+        : LEGEND_LINE_HEIGHT;
+
+      const heading = group.name ? 1 : 0;
+      const headers = group.config.show_headers && !narrow ? 1 : 0;
+      const total = group.config.total && group.config.total.mode !== "none" ? 1 : 0;
+
+      height += group.rows.length * rowHeight + (heading + headers + total) * LEGEND_LINE_HEIGHT;
+      blocks += group.rows.length + heading + headers + total;
+    });
+
+    // Every gap-separated block but the first carries one gap: within a group
+    // from `.legend-group`, between groups from `.legend` — both are the same
+    // size, so the whole legend simply has `blocks - 1` of them.
+    return height + Math.max(0, blocks - 1) * LEGEND_GAP;
   }
 
-  /** Grid rows the legend adds on top of whatever the wrapped card needs */
+  /**
+   * Whether the legend currently renders in its wrapped, narrow layout.
+   *
+   * Measured rather than derived: the container query in `legend-styles.ts`
+   * reacts to the card's own width, which nothing here can know ahead of layout.
+   * Until the first measurement lands, the narrow layout is assumed — it is the
+   * taller of the two, and reserving too much costs whitespace while reserving
+   * too little clips the legend. Home Assistant re-reads `getGridOptions()` on
+   * every render of the section, and the section renders on every `hass` update,
+   * so an over-reservation corrects itself within a second.
+   */
+  private _isNarrow(): boolean {
+    return this._cardWidth === undefined || this._cardWidth <= NARROW_CARD_WIDTH;
+  }
+
+  /**
+   * Everything this card renders around the wrapped one: the `title:` heading,
+   * the error banner, and the legend itself. All three are outside the wrapped
+   * card's own size, so all three have to be added to it.
+   */
+  private _extraHeight(): number {
+    return (
+      (this._config?.raw.title ? TITLE_HEIGHT : 0) +
+      (this._error ? NOTICE_HEIGHT : 0) +
+      this._legendHeight()
+    );
+  }
+
+  /** Grid rows this card needs on top of whatever the wrapped card needs */
   private _extraRows(): number {
-    const height = this._legendHeight();
+    const height = this._extraHeight();
     // n rows are worth `n * GRID_ROW_HEIGHT - GRID_ROW_GAP` pixels, so the gap
-    // has to be added back before dividing — without it a legend lands one or
-    // two pixels short of a row boundary and is clipped again.
+    // has to be added back before dividing — without it the content lands one
+    // or two pixels short of a row boundary and is clipped again.
     return height ? Math.ceil((height + GRID_ROW_GAP) / GRID_ROW_HEIGHT) : 0;
   }
 
   public async getCardSize(): Promise<number> {
     const innerSize = this._wrappedCard ? ((await this._wrappedCard.getCardSize?.()) ?? 6) : 0;
-    const height = this._legendHeight();
+    const height = this._extraHeight();
     return innerSize + (height ? Math.ceil(height / MASONRY_UNIT) : 0);
   }
 

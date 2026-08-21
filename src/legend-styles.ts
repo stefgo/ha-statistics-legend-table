@@ -25,6 +25,13 @@ export const legendStyles = css`
     gap: 16px;
     padding: 0 16px 16px;
     margin-top: 8px;
+    /* Query container for the narrow layout below. Deliberately on .legend
+       and not on ha-card: container-type brings layout containment with it,
+       which would make the card a containing block for absolutely positioned
+       descendants — and the card: block may hold a chart whose tooltips rely
+       on theirs. */
+    container-type: inline-size;
+    container-name: ecl-legend;
   }
   .legend-group {
     display: flex;
@@ -101,8 +108,16 @@ export const legendStyles = css`
     font-weight: var(--ha-font-weight-medium);
   }
 
-  /* Narrow cards: the value columns wrap below the series name */
-  @media (max-width: 400px) {
+  /* Narrow cards: the value columns wrap below the series name.
+     A container query, not a media query — this is about how much room the
+     legend has, which has nothing to do with the size of the window. The
+     previous @media (max-width: 400px) measured the viewport, so it fired on
+     every phone no matter how wide the card was (wrapping values that had room
+     to spare) and never fired for a narrow card in a wide sections layout,
+     which is the one case it was written for.
+     368px is the content box of a 400px card, i.e. minus the 2 * 16px padding
+     above; NARROW_CARD_WIDTH in the card mirrors this threshold. */
+  @container ecl-legend (max-width: 368px) {
     .legend-headers {
       display: none;
     }
