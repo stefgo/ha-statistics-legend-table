@@ -6,6 +6,15 @@
 import { css } from "lit";
 
 export const legendStyles = css`
+  /* A custom element is display: inline by default, and Lovelace does not set
+     this from the outside — hui-card leaves its child alone. It goes unnoticed
+     visually, because the ha-card inside is block-level and fills the width
+     anyway. It is not unnoticed by a ResizeObserver: a non-replaced inline
+     element reports a content box of 0x0, so the card could never measure
+     itself and fell back to its stacked layout at every width. */
+  :host {
+    display: block;
+  }
   ha-card {
     height: 100%;
   }
@@ -25,13 +34,6 @@ export const legendStyles = css`
     gap: 16px;
     padding: 0 16px 16px;
     margin-top: 8px;
-    /* Query container for the narrow layout below. Deliberately on .legend
-       and not on ha-card: container-type brings layout containment with it,
-       which would make the card a containing block for absolutely positioned
-       descendants — and the card: block may hold a chart whose tooltips rely
-       on theirs. */
-    container-type: inline-size;
-    container-name: ecl-legend;
   }
   .legend-group {
     display: flex;
@@ -108,27 +110,30 @@ export const legendStyles = css`
     font-weight: var(--ha-font-weight-medium);
   }
 
-  /* Narrow cards: the value columns wrap below the series name.
-     A container query, not a media query — this is about how much room the
-     legend has, which has nothing to do with the size of the window. The
-     previous @media (max-width: 400px) measured the viewport, so it fired on
-     every phone no matter how wide the card was (wrapping values that had room
-     to spare) and never fired for a narrow card in a wide sections layout,
-     which is the one case it was written for.
-     368px is the content box of a 400px card, i.e. minus the 2 * 16px padding
-     above; NARROW_CARD_WIDTH in the card mirrors this threshold. */
-  @container ecl-legend (max-width: 368px) {
-    .legend-headers {
-      display: none;
-    }
-    .legend-item {
-      grid-template-columns: 52px 1fr;
-      row-gap: 2px;
-    }
-    .legend-item .legend-value {
-      grid-column: 2;
-      text-align: left;
-      color: var(--secondary-text-color);
-    }
+  /* Not enough room for one line: the values stack below the series name.
+
+     The verdict is made in the card, not here, and arrives as this class. It
+     used to be @media (max-width: 400px), which measured the viewport — so it
+     fired on every phone however wide the card was, wrapping values that had
+     room to spare, and never fired for a narrow card in a wide sections layout,
+     which is the one case it was written for. A container query fixed the
+     measurement but not the threshold: what a row needs depends on how many
+     value columns it has, roughly 285px for a single one against well over 500
+     for four, and no single breakpoint serves both.
+
+     A query condition cannot read a custom property, so a computed threshold
+     cannot live in CSS. Deciding in the card also keeps the height estimate and
+     the stylesheet on one verdict instead of two that can drift apart. */
+  .legend-group.narrow .legend-headers {
+    display: none;
+  }
+  .legend-group.narrow .legend-item {
+    grid-template-columns: 52px 1fr;
+    row-gap: 2px;
+  }
+  .legend-group.narrow .legend-item .legend-value {
+    grid-column: 2;
+    text-align: left;
+    color: var(--secondary-text-color);
   }
 `;

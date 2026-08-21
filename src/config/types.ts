@@ -248,6 +248,20 @@ export interface LegendConfig {
   hide_zero?: boolean;
   /** Show column headers above the rows, defaults to false */
   show_headers?: boolean;
+  /**
+   * Width in pixels the series name should keep before the values move onto a
+   * line of their own, defaults to 120.
+   *
+   * The card wraps when the name would be squeezed below this; how much room
+   * that needs depends on how many value columns there are, so the threshold is
+   * computed rather than fixed. Only this one number cannot be derived — how
+   * short a name may get before wrapping beats truncating is a matter of taste,
+   * and names range from `PV` to `Wärmepumpe Erdgeschoss Vorlauf`.
+   *
+   * Two useful extremes: `0` wraps only once the values themselves no longer
+   * fit, a large value always wraps.
+   */
+  min_name_width?: number;
   /** Closing total row */
   total?: LegendTotalConfig;
   /** Splits the legend into named sections; unmatched rows form a trailing, unnamed group */
@@ -257,7 +271,13 @@ export interface LegendConfig {
 /** Fields of LegendConfig a group may override */
 export type LegendGroupOverrides = Pick<
   LegendConfig,
-  "columns" | "precision" | "show_unit" | "hide_zero" | "show_headers" | "total"
+  | "columns"
+  | "precision"
+  | "show_unit"
+  | "hide_zero"
+  | "show_headers"
+  | "min_name_width"
+  | "total"
 >;
 
 export interface LegendGroupConfig extends LegendGroupOverrides {

@@ -60,17 +60,23 @@ const COLUMN_LABELS: Record<LegendColumn, string> = {
 /** How often a `relative` timespan is re-resolved and re-fetched */
 const REFRESH_INTERVAL = 60_000;
 
-/* Legend metrics, mirroring `legend-styles.ts`. Only used to estimate how much
-   height the legend adds — see `_legendHeight()`. */
+/* Legend metrics, mirroring `legend-styles.ts`. They estimate the space the
+   legend needs: the heights below feed `_legendHeight()`, the widths further
+   down feed `_isNarrow()`. Both have to be kept in step with the stylesheet. */
 
-/** One legend line: 14px text at the inherited line-height of 1.6 */
-const LEGEND_LINE_HEIGHT = 22;
+/**
+ * One legend line. `.legend-item` sets 14px, and Home Assistant inherits
+ * `--ha-line-height-normal` (1.6) into every shadow root from `:host` in its
+ * `styles.ts`, so a line is 22.4px. Rounded up, not down: every estimate here
+ * errs towards reserving too much, because reserving too little clips.
+ */
+const LEGEND_LINE_HEIGHT = 23;
 /** `gap` of `.legend` and `.legend-group` */
 const LEGEND_GAP = 16;
 /** `.legend` margin-top plus its bottom padding */
 const LEGEND_PADDING = 24;
-/** `row-gap` between the wrapped value lines of a narrow row */
-const LEGEND_VALUE_GAP = 2;
+/** `row-gap` between the values of a row that had to stack them */
+const LEGEND_STACKED_GAP = 2;
 
 /**
  * The `title:` heading. Styled by `ha-card` itself, not here: `.card-header`
@@ -78,19 +84,37 @@ const LEGEND_VALUE_GAP = 2;
  * `--ha-font-size-2xl` (24px) at `--ha-line-height-expanded` (2) with a
  * `--ha-space-3` (12px) top padding. `legend-styles.ts` overrides the bottom
  * padding to 0, and the `h1` keeps its 0.67em user-agent margins.
- * 16 + 12 + 48 + 0 + 16. The bottom margin collapses with the legend's own
- * `margin-top`, which makes this a few pixels generous — the safe direction.
+ * 16.08 + 12 + 48 + 0 + 16.08, rounded up. The bottom margin collapses with
+ * the legend's own `margin-top`, which makes this a few pixels generous — the
+ * safe direction.
  */
-const TITLE_HEIGHT = 92;
+const TITLE_HEIGHT = 93;
 
-/** The error banner: one line of text inside the 16px padding of `.notice` */
-const NOTICE_HEIGHT = 54;
+/** The error banner: one 22.4px line inside the 16px padding of `.notice` */
+const NOTICE_HEIGHT = 55;
+
+/* Widths deciding whether a row still fits on one line. No single breakpoint
+   can: a lone `sum` column needs about 284px of row while all four need 584, so
+   one threshold stacks the former far too eagerly and the latter not at all.
+   The threshold is computed from the parts below instead — and computed here
+   rather than in a container query, because a query condition cannot read a
+   custom property, and because `_legendHeight()` has to reach the same verdict
+   as the stylesheet. One source of truth, not two that can drift apart. */
+
+/** First grid column of `.legend-item`, holding the color swatch */
+const LEGEND_ICON_COLUMN = 52;
+/** Column `gap` of `.legend-item` */
+const LEGEND_ITEM_GAP = 12;
+/** Left plus right padding of `.legend`, unavailable to a row */
+const LEGEND_SIDE_PADDING = 32;
 /**
- * Card width at or below which the values wrap onto their own lines. Mirrors
- * the `@container ecl-legend (max-width: 368px)` rule in `legend-styles.ts`,
- * whose 368px is this width minus the legend's horizontal padding.
+ * Assumed width of one value column — about `1.234,56 kWh` at 14px. Estimated
+ * and not measured on purpose: measuring the *name* would be circular, since
+ * stacking changes the very width that decided to stack.
  */
-const NARROW_CARD_WIDTH = 400;
+const LEGEND_VALUE_WIDTH = 88;
+/** Default for `legend.min_name_width`, roughly 16 characters at 14px */
+const DEFAULT_MIN_NAME_WIDTH = 120;
 
 /** `--ha-section-grid-row-gap` */
 const GRID_ROW_GAP = 8;
@@ -489,26 +513,36 @@ export class EnergyCustomLegendCard extends LitElement {
   }
 
   /**
-   * Tracks the card's width so the height estimate knows whether the legend
-   * wraps. Only a crossing of the threshold matters, so a render is requested
-   * for those and not for every pixel of a drag.
+   * Tracks the card's width, which is what decides whether a group stacks its
+   * values. Only a group actually changing its verdict matters, so a render is
+   * requested for that and not for every pixel of a resize.
    */
   private _startResizeObserver(): void {
     if (this._resizeObserver || typeof ResizeObserver === "undefined") {
       return;
     }
     this._resizeObserver = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect?.width;
-      if (typeof width !== "number" || !width) {
+      const entry = entries[0];
+      // `contentRect` is 0x0 for a host that is not a block box; `offsetWidth`
+      // still answers there, so a stray inline host cannot silently pin the
+      // card to its stacked layout again.
+      const width = entry?.contentRect?.width || (entry?.target as HTMLElement)?.offsetWidth;
+      if (typeof width !== "number" || !width || width === this._cardWidth) {
         return;
       }
-      const wasNarrow = this._isNarrow();
+      const before = this._narrowPerGroup();
       this._cardWidth = width;
-      if (wasNarrow !== this._isNarrow()) {
+      const after = this._narrowPerGroup();
+      if (before.length !== after.length || before.some((was, i) => was !== after[i])) {
         this.requestUpdate();
       }
     });
     this._resizeObserver.observe(this);
+  }
+
+  /** The stacking verdict of every group, used to spot a change on resize */
+  private _narrowPerGroup(): boolean[] {
+    return this._groups().map((group) => this._isNarrow(group.config));
   }
 
   /* ---------------------------------------------------------------------- */
@@ -569,7 +603,7 @@ export class EnergyCustomLegendCard extends LitElement {
     const total = computeTotal(visibleRows, group.config, this._statistics, this._localize);
 
     return html`
-      <div class="legend-group">
+      <div class="legend-group${this._isNarrow(group.config) ? " narrow" : ""}">
         ${group.name ? html`<div class="legend-group-title">${group.name}</div>` : nothing}
         ${group.config.show_headers
           ? html`
@@ -665,19 +699,18 @@ export class EnergyCustomLegendCard extends LitElement {
       return 0;
     }
 
-    const narrow = this._isNarrow();
     let height = LEGEND_PADDING;
     let blocks = 0;
 
     groups.forEach((group) => {
-      // Below the container query's threshold every value moves onto a line of
-      // its own beneath the name, and the header row is hidden entirely. A row
-      // is then `1 + columns` lines tall rather than one — with the default
-      // single `sum` column that is already twice the height, and with all four
-      // columns five times.
+      const narrow = this._isNarrow(group.config);
+      // A stacking group puts every value on a line of its own beneath the name
+      // and hides the header row entirely, so a row is `1 + columns` lines tall
+      // rather than one — with the default single `sum` column already twice
+      // the height, and with all four columns five times.
       const columns = columnsFor(group.config.columns).length;
       const rowHeight = narrow
-        ? LEGEND_LINE_HEIGHT + columns * (LEGEND_LINE_HEIGHT + LEGEND_VALUE_GAP)
+        ? LEGEND_LINE_HEIGHT + columns * (LEGEND_LINE_HEIGHT + LEGEND_STACKED_GAP)
         : LEGEND_LINE_HEIGHT;
 
       const heading = group.name ? 1 : 0;
@@ -695,18 +728,59 @@ export class EnergyCustomLegendCard extends LitElement {
   }
 
   /**
-   * Whether the legend currently renders in its wrapped, narrow layout.
+   * Whether a group's rows have to stack their values below the name.
    *
-   * Measured rather than derived: the container query in `legend-styles.ts`
-   * reacts to the card's own width, which nothing here can know ahead of layout.
-   * Until the first measurement lands, the narrow layout is assumed — it is the
-   * taller of the two, and reserving too much costs whitespace while reserving
-   * too little clips the legend. Home Assistant re-reads `getGridOptions()` on
-   * every render of the section, and the section renders on every `hass` update,
-   * so an over-reservation corrects itself within a second.
+   * Decided per group, not per card: `legend.groups[]` may override `columns`,
+   * and a group with one value column needs a completely different amount of
+   * room than one with four. A single verdict for the whole card would be wrong
+   * for one of them.
+   *
+   * The width itself is measured, since nothing here can know it ahead of
+   * layout. Until the first measurement lands the stacked layout is assumed —
+   * it is the taller of the two, and reserving too much costs whitespace while
+   * reserving too little clips the legend. Home Assistant re-reads
+   * `getGridOptions()` on every render of the section and the section renders on
+   * every `hass` update, so an over-reservation corrects itself within a second.
    */
-  private _isNarrow(): boolean {
-    return this._cardWidth === undefined || this._cardWidth <= NARROW_CARD_WIDTH;
+  private _isNarrow(config: LegendConfig): boolean {
+    const cardWidth = this._measuredWidth();
+    if (cardWidth === undefined) {
+      return true;
+    }
+
+    const columns = columnsFor(config.columns).length;
+    const minNameWidth =
+      typeof config.min_name_width === "number" && config.min_name_width >= 0
+        ? config.min_name_width
+        : DEFAULT_MIN_NAME_WIDTH;
+
+    const required =
+      LEGEND_ICON_COLUMN +
+      LEGEND_ITEM_GAP +
+      minNameWidth +
+      columns * (LEGEND_VALUE_WIDTH + LEGEND_ITEM_GAP);
+
+    // The legend's own horizontal padding is not available to a row.
+    return cardWidth - LEGEND_SIDE_PADDING < required;
+  }
+
+  /**
+   * The card's width, from the observer if it has reported and read directly
+   * otherwise.
+   *
+   * The direct read forces a layout, so its result is kept: `_isNarrow()` runs
+   * once per group per render, and where no observer ever reports — it is
+   * optional, and a host that is not a block box measures 0 — an unremembered
+   * read would force one on every one of them, for as long as the card is on
+   * screen. Reading at all is worth it because the alternative is worse: a
+   * single missed measurement would leave the card on its conservative
+   * assumption, stacked, however much room it actually has.
+   */
+  private _measuredWidth(): number | undefined {
+    if (this._cardWidth === undefined && this.offsetWidth > 0) {
+      this._cardWidth = this.offsetWidth;
+    }
+    return this._cardWidth;
   }
 
   /**

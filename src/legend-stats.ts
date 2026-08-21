@@ -32,6 +32,7 @@ function resolveGroupConfig(base: LegendConfig, override: LegendGroupOverrides):
     show_unit: override.show_unit ?? base.show_unit,
     hide_zero: override.hide_zero ?? base.hide_zero,
     show_headers: override.show_headers ?? base.show_headers,
+    min_name_width: override.min_name_width ?? base.min_name_width,
     total: override.total ?? base.total,
   };
 }

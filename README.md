@@ -208,10 +208,25 @@ entities:
 | `show_unit`    | bool   | `true`  | Show the unit after the value |
 | `hide_zero`    | bool   | `false` | Hide rows without values or with a sum of 0 |
 | `show_headers` | bool   | `false` | Column headers (`Σ`, `Min`, `Max`, `Ø`) |
+| `min_name_width` | number | `120` | Pixels the name keeps before the values stack below it, see below |
 | `total`        | object | –       | Closing row, see below |
 | `groups`       | list   | –       | Split into named sections, see below |
 
 `no_values` is set on the row itself in `entities[].no_values`, see above.
+
+**`min_name_width`** decides when a row runs out of horizontal room. When the
+name would be squeezed below this width, the values move onto a line of their
+own beneath it. How much room that takes depends on how many value columns a
+row has, so the threshold is computed rather than fixed — with the default it
+falls at about 316px of card width for a single column and 616px for all four.
+The decision is made per group, so groups with different `columns` behave
+independently.
+
+Two values are worth knowing:
+
+- `0` stacks only once the *values* themselves no longer fit; the name is
+  truncated with an ellipsis instead.
+- A large value stacks always.
 
 **Selectors** in `groups[].entities` match a row's `key` or its displayed `name`.
 
@@ -249,7 +264,7 @@ legend:
 ```
 
 `name` is the heading (no `name` means no heading), `entities` lists the group's selectors.
-`columns`, `precision`, `show_unit`, `hide_zero`, `show_headers` and `total` override the
+`columns`, `precision`, `show_unit`, `hide_zero`, `show_headers`, `min_name_width` and `total` override the
 top-level option of the same name for this group only. Rows that match no group end up in an
 unnamed remainder group at the end — nothing is lost.
 
