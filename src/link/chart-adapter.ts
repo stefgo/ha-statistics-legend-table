@@ -12,9 +12,20 @@
  * native `legendToggleSelect` action has no effect. `ha-chart-base` implements
  * its own toggle instead, tracked in a `_hiddenDatasets` set and applied via
  * `_handleDatasetToggle(id)` — the same method its own built-in legend calls on
- * a click, and which already resolves linked/secondary ids itself. It announces
- * every change with `dataset-hidden` / `dataset-unhidden` events, which is how
- * a toggle made *in the chart* finds its way back into the legend.
+ * a click. It announces every change with `dataset-hidden` / `dataset-unhidden`
+ * events, which is how a toggle made *in the chart* finds its way back into the
+ * legend.
+ *
+ * Two properties of that API shape this adapter, both of them verified against
+ * `frontend/src/components/chart/ha-chart-base.ts` rather than assumed:
+ *
+ * - `_handleDatasetToggle(id)` resolves a legend item's `secondaryIds` itself,
+ *   so it must be called with *legend* ids only. Passing it a primary and one of
+ *   its own secondaries toggles twice and lands back where it started.
+ * - The events carry only the primary id, while the chart hides every linked
+ *   one — and `_updateHiddenStatsFromOptions()` changes the set without any
+ *   event at all. An incrementally patched mirror therefore drifts; the set is
+ *   re-read wholesale instead.
  *
  * Every access is optional-chained and guarded: if a future frontend version
  * renames these, `isHidden()` returns `undefined` and `toggle()` no-ops, leaving
@@ -99,8 +110,17 @@ export class ChartLinkAdapter implements LinkAdapter {
 
     // `attach()` runs after every render of the legend, but the deep search is
     // expensive (it walks shadow roots). While the chart we already found is
-    // still in the document, there is nothing to re-resolve.
+    // still in the document, there is nothing to re-resolve — only the hidden
+    // set is re-read, because not every change to it announces itself:
+    // `ha-chart-base` fills `_hiddenDatasets` from `legend.selected` in
+    // `_updateHiddenStatsFromOptions()` on every options update, entirely
+    // without an event ("No known need to remove items at this time", as the
+    // frontend puts it). Reading a Set of a handful of strings per render is
+    // cheap; missing that state is not.
     if (this._chartBase?.isConnected) {
+      if (this._syncHidden()) {
+        context.notify();
+      }
       return;
     }
 
@@ -134,17 +154,26 @@ export class ChartLinkAdapter implements LinkAdapter {
    * already in the requested state. That keeps the series behind one legend row
    * in sync, and stops a click from re-hiding a series that was toggled in the
    * chart itself.
+   *
+   * Only *legend* ids are passed to it, never raw series ids: the method resolves
+   * an item's `secondaryIds` itself, so handing it both a primary and one of its
+   * secondaries would make the second call undo the first. That is exactly what
+   * happens with a compare series (`<id>--compare` is a segment-prefix match for
+   * the same target), which left the row permanently un-greyable.
    */
   public toggle(target: string, hidden: boolean): void {
     const chartBase = this._chartBase;
     if (!chartBase || typeof chartBase._handleDatasetToggle !== "function") {
       return;
     }
-    this._resolveSeriesIds(target).forEach((seriesId) => {
-      if (this._hidden.has(seriesId) !== hidden) {
-        chartBase._handleDatasetToggle(seriesId);
+    this._legendIdsFor(target).forEach((legendId) => {
+      if (this._hidden.has(legendId) !== hidden) {
+        chartBase._handleDatasetToggle(legendId);
       }
     });
+    // The events only carry the primary id while the chart hides every linked
+    // one, so the mirror is re-read wholesale rather than patched.
+    this._syncHidden();
   }
 
   /**
@@ -199,27 +228,88 @@ export class ChartLinkAdapter implements LinkAdapter {
       .filter((id: unknown): id is string => typeof id === "string");
   }
 
-  /** Adopts the chart's current hidden set, e.g. after it re-rendered */
-  private _syncHidden(): void {
-    const hidden = this._chartBase?._hiddenDatasets;
-    if (hidden instanceof Set) {
-      this._hidden = new Set([...hidden].filter((id): id is string => typeof id === "string"));
+  /**
+   * The chart's custom legend items, each of which controls one primary id plus
+   * any number of `secondaryIds`. `legend` may be a single object or a list
+   * (`ha-chart-base` reads `ensureArray(options.legend)[0]`), and only a legend
+   * of `type: "custom"` links ids at all — everything else yields no items, and
+   * every series then stands for itself.
+   */
+  private _legendItems(): { id: string; secondaryIds: string[] }[] {
+    const legend = this._chartBase?.options?.legend;
+    const first = Array.isArray(legend) ? legend[0] : legend;
+    if (!first || first.type !== "custom" || !Array.isArray(first.data)) {
+      return [];
     }
+    return first.data
+      .filter((item: AnyRecord) => item && typeof item.id === "string")
+      .map((item: AnyRecord) => ({
+        id: item.id as string,
+        secondaryIds: Array.isArray(item.secondaryIds)
+          ? item.secondaryIds.filter((id: unknown): id is string => typeof id === "string")
+          : [],
+      }));
   }
 
-  private _onHidden = (event: Event): void => {
-    const id = (event as CustomEvent<{ id?: string }>).detail?.id;
-    if (id) {
-      this._hidden.add(id);
-      this._context?.notify();
+  /**
+   * The legend ids that control a target, deduplicated.
+   *
+   * A series may be a legend item's primary id or one of its secondaries; either
+   * way the id that must be handed to `_handleDatasetToggle()` is the primary
+   * one. Without a custom legend each series controls itself, which is the
+   * behaviour of the built-in cards that build a plain legend.
+   */
+  private _legendIdsFor(target: string): string[] {
+    const items = this._legendItems();
+    const legendIds = this._resolveSeriesIds(target).map((seriesId) => {
+      const owner = items.find(
+        (item) => item.id === seriesId || item.secondaryIds.includes(seriesId)
+      );
+      return owner ? owner.id : seriesId;
+    });
+    return [...new Set(legendIds)];
+  }
+
+  /**
+   * Adopts the chart's current hidden set wholesale. Returns whether anything
+   * changed, and `false` too when the set could not be read at all — a renamed
+   * internal then leaves the previous mirror standing instead of wiping it.
+   */
+  private _syncHidden(): boolean {
+    const hidden = this._chartBase?._hiddenDatasets;
+    if (!(hidden instanceof Set)) {
+      return false;
     }
+    const next = new Set([...hidden].filter((id): id is string => typeof id === "string"));
+    if (next.size === this._hidden.size && [...next].every((id) => this._hidden.has(id))) {
+      return false;
+    }
+    this._hidden = next;
+    return true;
+  }
+
+  /**
+   * Both events are handled the same way: re-read the whole set rather than
+   * patch it with the single id the event carries, since the chart hides every
+   * linked id but announces only the primary one. The incremental fallback keeps
+   * the adapter working if `_hiddenDatasets` ever disappears.
+   */
+  private _onDatasetToggled = (event: Event, hidden: boolean): void => {
+    if (!this._syncHidden()) {
+      const id = (event as CustomEvent<{ id?: string }>).detail?.id;
+      if (!id) {
+        return;
+      }
+      if (hidden) {
+        this._hidden.add(id);
+      } else {
+        this._hidden.delete(id);
+      }
+    }
+    this._context?.notify();
   };
 
-  private _onUnhidden = (event: Event): void => {
-    const id = (event as CustomEvent<{ id?: string }>).detail?.id;
-    if (id) {
-      this._hidden.delete(id);
-      this._context?.notify();
-    }
-  };
+  private _onHidden = (event: Event): void => this._onDatasetToggled(event, true);
+
+  private _onUnhidden = (event: Event): void => this._onDatasetToggled(event, false);
 }
