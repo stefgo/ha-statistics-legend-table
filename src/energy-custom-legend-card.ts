@@ -811,6 +811,25 @@ export class EnergyCustomLegendCard extends LitElement {
     return innerSize + (height ? Math.ceil(height / MASONRY_UNIT) : 0);
   }
 
+  /**
+   * Grid size of the card.
+   *
+   * Without a `card:` block the legend *is* the card, and its height is left to
+   * the browser: `rows: "auto"` is what Home Assistant defaults to for a card
+   * that reports no rows at all (`DEFAULT_GRID_SIZE`), and what its own layout
+   * editor offers as "Auto height". A number instead puts the section grid into
+   * `fit-rows`, which pins the card to `rows * 64 - 8` pixels — every pixel the
+   * estimate falls short then clips the legend rather than merely crowding it.
+   * There is nothing to estimate here that the browser does not measure better.
+   *
+   * With a `card:` block the rows stay a number: the embedded card reports its
+   * own (`energy-custom-graph` asks for 4 to 6) because its chart needs a
+   * definite height to size to, and `auto` would take that away.
+   *
+   * `min_rows` stays a number either way. The grid ignores it while rows are
+   * `auto`, but the layout editor falls back to it as the starting height when
+   * someone switches "Auto height" off — better a measured number than its `1`.
+   */
   public getGridOptions(): Record<string, unknown> {
     const innerOptions = this._wrappedCard?.getGridOptions?.() ?? {};
     const extra = this._extraRows();
@@ -826,7 +845,7 @@ export class EnergyCustomLegendCard extends LitElement {
 
     return {
       ...innerOptions,
-      rows: rows + extra,
+      rows: this._wrappedCard ? rows + extra : "auto",
       min_rows: minRows + extra,
       ...(maxRows === undefined ? {} : { max_rows: maxRows }),
     };
