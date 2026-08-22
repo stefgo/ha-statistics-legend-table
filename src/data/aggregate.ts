@@ -10,7 +10,12 @@ import type { HomeAssistant } from "custom-card-helpers";
 
 import { isDarkMode, resolveColor, withAlpha, SWATCH_FILL_ALPHA } from "../colors";
 import type { ResolvedCalculation, ResolvedEntity } from "../config/normalize";
-import type { LegendRow, StatType } from "../config/types";
+import type {
+  LegendConfig,
+  LegendRow,
+  LegendTotalConfig,
+  StatType,
+} from "../config/types";
 import {
   Statistics,
   StatisticsMetadata,
@@ -203,8 +208,24 @@ export function buildRows(
   });
 }
 
-/** Every statistic type any row (or the ratio total) asks for */
-export function collectStatTypes(entities: ResolvedEntity[], totalStatType?: StatType): Set<StatType> {
+/**
+ * The ratio totals of a legend: the top-level one plus every group override.
+ *
+ * A group may override `total` with a ratio of its own, so collecting only the
+ * top-level one left those groups without any of their operands fetched — they
+ * summed nothing and rendered a constant `0.0 %`.
+ */
+export function collectRatioTotals(legend: LegendConfig | undefined): LegendTotalConfig[] {
+  return [legend?.total, ...(legend?.groups ?? []).map((group) => group.total)].filter(
+    (total): total is LegendTotalConfig => total?.mode === "ratio"
+  );
+}
+
+/** Every statistic type any row (or any ratio total) asks for */
+export function collectStatTypes(
+  entities: ResolvedEntity[],
+  ratioTotals: LegendTotalConfig[] = []
+): Set<StatType> {
   const types = new Set<StatType>();
   entities.forEach((entity) => {
     types.add(entity.statType);
@@ -214,27 +235,28 @@ export function collectStatTypes(entities: ResolvedEntity[], totalStatType?: Sta
       }
     });
   });
-  if (totalStatType) {
-    types.add(totalStatType);
-  }
+  // `computeTotal()` defaults a ratio without `stat_type` to `change`, so the
+  // same default has to be requested here or the operands come back empty.
+  ratioTotals.forEach((total) => types.add(total.stat_type ?? "change"));
   if (!types.size) {
     types.add("change");
   }
   return types;
 }
 
-/** Every statistic id that needs fetching, including the ratio total's operands */
+/** Every statistic id that needs fetching, including every ratio total's operands */
 export function collectStatisticIds(
   entities: ResolvedEntity[],
-  numerator: string[] = [],
-  denominator: string[] = []
+  ratioTotals: LegendTotalConfig[] = []
 ): string[] {
   const ids = new Set<string>();
   entities.forEach((entity) => entity.statisticIds.forEach((id) => ids.add(id)));
-  [...numerator, ...denominator].forEach((id) => {
-    if (typeof id === "string" && id.trim()) {
-      ids.add(id.trim());
-    }
+  ratioTotals.forEach((total) => {
+    [...(total.numerator ?? []), ...(total.denominator ?? [])].forEach((id) => {
+      if (typeof id === "string" && id.trim()) {
+        ids.add(id.trim());
+      }
+    });
   });
   return [...ids];
 }

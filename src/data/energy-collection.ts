@@ -44,6 +44,22 @@ function collectionKeys(hass: HomeAssistant, configuredKey?: string): string[] {
 }
 
 /**
+ * One synchronous look for the collection, without waiting.
+ *
+ * Used by the caller's fallback path to notice a collection that only appeared
+ * later — an energy card added to the view, or a dashboard that took longer to
+ * build than `waitForCollection()` was willing to wait.
+ */
+export function findEnergyCollection(
+  hass: HomeAssistant,
+  configuredKey?: string
+): boolean {
+  return collectionKeys(hass, configuredKey).some(
+    (key) => (hass.connection as unknown as AnyRecord)[key]?.subscribe
+  );
+}
+
+/**
  * Waits for the collection to appear on the connection. On a fresh page load the
  * energy card that creates it may not have rendered yet, so this retries with a
  * capped exponential backoff instead of giving up on the first miss.
