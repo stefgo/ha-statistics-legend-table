@@ -27,7 +27,9 @@ fi
 
 echo "Building card ..."
 npm ci --silent
-npm run build
+# The local build counter is opt-in, so only the bundle deployed from here
+# carries one; releases built on GitHub stay at the plain semver.
+ENERGYLEGEND_BUILD_COUNTER=1 npm run build
 
 echo "Deploying energy-custom-legend.js to ${HOST}:${TARGET} ..."
 ssh -p "${SSH_PORT}" "${HOST}" "mkdir -p ${TARGET}"
