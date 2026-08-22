@@ -310,7 +310,6 @@ own row (which also affects `total: {mode: sum}`).
 | Option         | Type   | Default                | Description |
 | -------------- | ------ | ---------------------- | ----------- |
 | `mode`         | string | `none`                 | `chart`, `entity`, `event` or `none` |
-| `target`       | string | `card`                 | `chart` only: `card` or a CSS selector |
 | `service`      | string | `homeassistant.toggle` | `entity` only |
 | `hidden_state` | string | `off`                  | `entity` only: which state counts as “hidden” |
 | `link_id`      | string | –                      | `event` only: identifies this legend in the events |
@@ -349,7 +348,6 @@ card:
       chart_type: bar
 link:
   mode: chart
-  target: card
 entities:
   - statistic_id: sensor.grid_import
     name: Grid import
@@ -385,14 +383,13 @@ are called `calculation_<index>`, where `<index>` is the **position of the serie
 `series:` list** (zero-based, counted across all series). So for the first series,
 `link: calculation_0`.
 
-If the target card is not in `card:` but stands next to it as a card of its own, `target` points
-at it with a CSS selector (the search goes through shadow roots):
+`mode: chart` addresses the chart inside the card's own `card:` block, and only that one. A chart
+card standing next to the legend as a card of its own is not reachable this way — put it in
+`card:`, or drive it through `mode: entity` and a `conditional` card.
 
-```yaml
-link:
-  mode: chart
-  target: "energy-custom-graph-card"
-```
+> **Changed:** earlier versions had a `target:` option taking a CSS selector, which searched the
+> whole document. It is gone. A `target:` left in an existing configuration is ignored rather than
+> rejected, so nothing stops working — but the link then addresses the `card:` block.
 
 ### `mode: entity`
 

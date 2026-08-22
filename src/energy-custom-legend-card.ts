@@ -515,22 +515,19 @@ export class EnergyCustomLegendCard extends LitElement {
     }
 
     // The render is skipped, so `updated()` will not run — and with it neither
-    // would `_links.attach()`, which is what re-reads the chart's hidden set.
-    // That set can change without any event (`_updateHiddenStatsFromOptions()`
-    // fills it from `legend.selected` on every options update), so dropping the
-    // re-read would let the mirrored state drift again, exactly the way the
-    // chart fix removed. It is called here instead. Where the chart is already
-    // resolved this costs a read of a handful of strings; where it is not, it
-    // costs the shadow-DOM walk it costs today — that walk is a separate
-    // measure, and skipping renders must not quietly reintroduce a bug to
-    // achieve it.
+    // would the re-read of the chart's hidden set, which can change without any
+    // event (`_updateHiddenStatsFromOptions()` fills it from `legend.selected`
+    // on every options update). Dropping it would let the mirrored state drift
+    // again, exactly the way the chart fix removed. `sync()` does that re-read
+    // and nothing else: no DOM is searched here, because nothing has rendered,
+    // so nothing can have moved.
     //
     // An adapter noticing a change calls `notify()`, i.e. `requestUpdate()` —
     // which Lit swallows here, because the pending update it would schedule is
     // the very one being answered (`__markUpdated()` clears it on this path).
     // Hence the flag rather than a second `requestUpdate()`.
     this._linkNotified = false;
-    this._links.attach(this, this._wrappedCard, this.hass);
+    this._links.sync(this, this._wrappedCard, this.hass);
     return this._linkNotified;
   }
 

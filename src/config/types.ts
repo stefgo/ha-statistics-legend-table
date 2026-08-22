@@ -295,18 +295,12 @@ export type LinkMode = "chart" | "entity" | "event" | "none";
 
 export interface LinkConfig {
   /**
-   * - `chart`: toggles a dataset of an `ha-chart-base` inside the target card
+   * - `chart`: toggles a dataset of an `ha-chart-base` inside the `card:` block
    * - `entity`: toggles a Home Assistant entity (typically an `input_boolean`)
    * - `event`: dispatches a CustomEvent on `window`
    * - `none`: the legend only greys out its own row
    */
   mode?: LinkMode;
-  /**
-   * `chart` mode: which card to look inside. `card` (the default) means the card
-   * rendered from the `card:` block; anything else is a CSS selector resolved
-   * against the document, piercing shadow roots.
-   */
-  target?: string;
   /** `event` mode: identifies this legend in the dispatched events */
   link_id?: string;
   /** `entity` mode: service called on click, defaults to `homeassistant.toggle` */

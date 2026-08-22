@@ -18,7 +18,7 @@ import type { LinkAdapter, LinkContext } from "./types";
 function createAdapter(config: LinkConfig): LinkAdapter | undefined {
   switch (config.mode) {
     case "chart":
-      return new ChartLinkAdapter(config.target);
+      return new ChartLinkAdapter();
     case "entity":
       return new EntityLinkAdapter(config.service, config.hidden_state);
     case "event":
@@ -55,6 +55,18 @@ export class LinkController {
   public attach(host: HTMLElement, wrappedCard: HTMLElement | undefined, hass: HomeAssistant | undefined): void {
     this._context = { host, wrappedCard, hass, notify: this._notify };
     this._adapters.forEach((adapter) => adapter.attach(this._context!));
+  }
+
+  /**
+   * Refreshes the adapters without re-resolving their targets.
+   *
+   * The card calls this for an update it skips: nothing has rendered, so the DOM
+   * cannot have changed, but `hass` has been replaced and a mirrored state may
+   * have moved on underneath.
+   */
+  public sync(host: HTMLElement, wrappedCard: HTMLElement | undefined, hass: HomeAssistant | undefined): void {
+    this._context = { host, wrappedCard, hass, notify: this._notify };
+    this._adapters.forEach((adapter) => adapter.sync?.(this._context!));
   }
 
   public detach(): void {

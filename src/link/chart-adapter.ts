@@ -30,6 +30,11 @@
  * Every access is optional-chained and guarded: if a future frontend version
  * renames these, `isHidden()` returns `undefined` and `toggle()` no-ops, leaving
  * the legend working on its own state instead of throwing on a dashboard.
+ *
+ * The chart is looked for inside the card's own `card:` block and nowhere else.
+ * An earlier `target:` option took a CSS selector resolved against the whole
+ * document, which made the search both broader and far more frequent than it
+ * ever needed to be.
  */
 
 import type { LinkAdapter, LinkContext } from "./types";
@@ -79,74 +84,131 @@ function findDeep(root: ParentNode | null | undefined, selector: string, depth =
   return undefined;
 }
 
-/**
- * Locates the card the chart lives in.
- *
- * `target: card` (the default) uses the card rendered from our own `card:`
- * block. Any other value is a CSS selector resolved against the document —
- * that is the standalone case, where the legend and the chart card are separate
- * cards in a stack and the user points us at the other one.
- */
-function resolveScope(context: LinkContext, target: string | undefined): ParentNode | undefined {
-  if (!target || target === "card") {
-    return context.wrappedCard;
-  }
-  return findDeep(document, target) ?? undefined;
-}
-
 export class ChartLinkAdapter implements LinkAdapter {
-  private _target?: string;
   private _chartBase?: AnyRecord & EventTarget;
   private _context?: LinkContext;
+  /** Element the listeners sit on, so `detach()` can remove them again */
+  private _listeningOn?: EventTarget;
   /** Mirrors the chart's hidden set, kept current through its own events */
   private _hidden = new Set<string>();
 
-  constructor(target?: string) {
-    this._target = target;
-  }
-
+  /**
+   * Resolves the chart and keeps the listeners in place.
+   *
+   * Called only where the DOM may actually have changed — from the card's
+   * `updated()`, i.e. after a render. The frequent, cheap path is `sync()`.
+   */
   public attach(context: LinkContext): void {
     this._context = context;
+    this._listen(context.host);
+    this._resolve();
+    this.sync(context);
+  }
 
-    // `attach()` runs after every render of the legend, but the deep search is
-    // expensive (it walks shadow roots). While the chart we already found is
-    // still in the document, there is nothing to re-resolve — only the hidden
-    // set is re-read, because not every change to it announces itself:
-    // `ha-chart-base` fills `_hiddenDatasets` from `legend.selected` in
-    // `_updateHiddenStatsFromOptions()` on every options update, entirely
-    // without an event ("No known need to remove items at this time", as the
-    // frontend puts it). Reading a Set of a handful of strings per render is
-    // cheap; missing that state is not.
-    if (this._chartBase?.isConnected) {
-      if (this._syncHidden()) {
-        context.notify();
-      }
-      return;
+  /**
+   * Re-reads the chart's hidden set without touching the DOM.
+   *
+   * This exists because not every change to that set announces itself:
+   * `ha-chart-base` fills `_hiddenDatasets` from `legend.selected` in
+   * `_updateHiddenStatsFromOptions()` on every options update, entirely without
+   * an event ("No known need to remove items at this time", as the frontend puts
+   * it). Reading a Set of a handful of strings is cheap enough to do on every
+   * update of the card; walking the shadow DOM for it was not.
+   */
+  public sync(context: LinkContext): void {
+    this._context = context;
+    if (this._chartBase && this._syncHidden()) {
+      context.notify();
     }
-
-    const scope = resolveScope(context, this._target);
-    const chartBase = scope ? (findDeep(scope, CHART_TAG) as unknown as AnyRecord & EventTarget) : undefined;
-
-    if (chartBase === this._chartBase) {
-      return;
-    }
-
-    this.detach();
-    if (!chartBase) {
-      return;
-    }
-
-    this._chartBase = chartBase;
-    chartBase.addEventListener("dataset-hidden", this._onHidden);
-    chartBase.addEventListener("dataset-unhidden", this._onUnhidden);
-    this._syncHidden();
   }
 
   public detach(): void {
-    this._chartBase?.removeEventListener("dataset-hidden", this._onHidden);
-    this._chartBase?.removeEventListener("dataset-unhidden", this._onUnhidden);
+    this._unlisten();
     this._chartBase = undefined;
+    this._context = undefined;
     this._hidden.clear();
+  }
+
+  /**
+   * Listens on the legend element itself rather than on the chart.
+   *
+   * `fireEvent` defaults to `bubbles: true, composed: true`
+   * (`frontend/src/common/dom/fire_event.ts:78`) and `ha-chart-base` uses those
+   * defaults, so the events cross every shadow boundary on their way up and
+   * reach this card without a reference to their source. Binding here instead of
+   * to the chart means a chart that appears late, is replaced, or is never found
+   * at all costs nothing — and it mirrors what `graph-selection.ts` already does.
+   *
+   * The host bounds what is heard to cards rendered inside this one;
+   * `_isOurs()` narrows that to the `card:` element.
+   */
+  private _listen(host: EventTarget): void {
+    if (this._listeningOn === host) {
+      return;
+    }
+    this._unlisten();
+    host.addEventListener("dataset-hidden", this._onHidden);
+    host.addEventListener("dataset-unhidden", this._onUnhidden);
+    this._listeningOn = host;
+  }
+
+  private _unlisten(): void {
+    this._listeningOn?.removeEventListener("dataset-hidden", this._onHidden);
+    this._listeningOn?.removeEventListener("dataset-unhidden", this._onUnhidden);
+    this._listeningOn = undefined;
+  }
+
+  /**
+   * Locates the chart, but only while there is none.
+   *
+   * `toggle()` needs the element itself — `_handleDatasetToggle()` is the only
+   * toggle API — and so does reading `_hiddenDatasets`. The search stays a
+   * shadow-DOM walk because shadow DOM has no global query; what changed is how
+   * often it runs. It used to run on every `hass` update whenever the chart had
+   * not been found, which on a busy installation was several full walks per
+   * second, for a DOM that had not changed in between.
+   */
+  private _resolve(): void {
+    if (this._chartBase?.isConnected) {
+      return;
+    }
+    const scope = this._context?.wrappedCard;
+    const found = scope
+      ? (findDeep(scope, CHART_TAG) as unknown as AnyRecord & EventTarget | undefined)
+      : undefined;
+    if (found !== this._chartBase) {
+      this._chartBase = found;
+      this._hidden.clear();
+    }
+  }
+
+  /**
+   * Whether an event came from the card rendered from our own `card:` block.
+   *
+   * A second chart elsewhere on the view is not ours to control, and a card that
+   * embeds a chart of its own would otherwise drive this legend too.
+   */
+  private _isOurs(event: Event): boolean {
+    const wrapped = this._context?.wrappedCard;
+    return Boolean(wrapped && event.composedPath().includes(wrapped));
+  }
+
+  /**
+   * Takes the chart reference straight out of an event.
+   *
+   * The event starts at the `ha-chart-base` itself, so `composedPath()[0]` is
+   * the element the walk would have looked for. Once the user has interacted
+   * with the chart once, no search is needed at all — and a chart the walk could
+   * not reach is picked up here anyway.
+   */
+  private _adoptFromEvent(event: Event): void {
+    if (this._chartBase?.isConnected) {
+      return;
+    }
+    const source = event.composedPath()[0] as (AnyRecord & EventTarget) | undefined;
+    if ((source as unknown as Element)?.localName === CHART_TAG) {
+      this._chartBase = source;
+    }
   }
 
   /**
@@ -295,6 +357,11 @@ export class ChartLinkAdapter implements LinkAdapter {
    * the adapter working if `_hiddenDatasets` ever disappears.
    */
   private _onDatasetToggled = (event: Event, hidden: boolean): void => {
+    if (!this._isOurs(event)) {
+      return;
+    }
+    this._adoptFromEvent(event);
+
     if (!this._syncHidden()) {
       const id = (event as CustomEvent<{ id?: string }>).detail?.id;
       if (!id) {
