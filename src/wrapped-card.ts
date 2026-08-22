@@ -33,11 +33,24 @@ export interface LovelaceCardElement extends HTMLElement {
 /**
  * Builds the card element. Errors are turned into an error card rather than
  * being thrown, so a broken inner card never takes the legend down with it.
+ *
+ * The `await` on `loadCardHelpers()` is inside the `try` on purpose. It is a
+ * frontend function this card does not own, and a rejecting one used to escape
+ * as an unhandled rejection — the `card:` block then vanished from the legend
+ * with no error anywhere on the dashboard, only in the console. It is the one
+ * failure here that cannot be turned into an error card, because building one
+ * needs the very helpers that failed to load; `undefined` at least renders the
+ * legend rather than nothing.
  */
 export async function createWrappedCard(
   config: LovelaceCardConfig
 ): Promise<LovelaceCardElement | undefined> {
-  const helpers = await window.loadCardHelpers?.();
+  let helpers: CardHelpers | undefined;
+  try {
+    helpers = await window.loadCardHelpers?.();
+  } catch (_err) {
+    return undefined;
+  }
   if (!helpers) {
     return undefined;
   }
@@ -48,6 +61,10 @@ export async function createWrappedCard(
     return element;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return helpers.createErrorCardElement?.(message, config);
+    try {
+      return helpers.createErrorCardElement?.(message, config);
+    } catch (_err) {
+      return undefined;
+    }
   }
 }
