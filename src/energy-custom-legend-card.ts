@@ -34,7 +34,12 @@ import {
   collectStatisticIds,
 } from "./data/aggregate";
 import { findEnergyCollection, subscribeEnergyRange } from "./data/energy-collection";
-import { Statistics, StatisticsMetadata, fetchStatistics } from "./data/statistics";
+import {
+  Statistics,
+  StatisticsMetadata,
+  StatisticsMetadataCache,
+  fetchStatistics,
+} from "./data/statistics";
 import {
   ResolvedTimespan,
   periodFor,
@@ -168,6 +173,13 @@ export class EnergyCustomLegendCard extends LitElement {
   private _statistics: Statistics = {};
   /** Kept alongside `_statistics` so rows can be rebuilt without refetching */
   private _metadata: StatisticsMetadata = {};
+  /**
+   * Metadata survives a refresh — it answers what a statistic is called and
+   * which unit it is stored in, neither of which changes while the dashboard is
+   * open. Cleared on a config change, which is the only thing that can change
+   * the set of ids it holds.
+   */
+  private _metadataCache = new StatisticsMetadataCache();
   /** Tracked so a system-triggered theme flip can rebuild rows without a fetch */
   private _darkMode = false;
   private _wrappedCard?: LovelaceCardElement;
@@ -246,6 +258,7 @@ export class EnergyCustomLegendCard extends LitElement {
     this._rows = [];
     this._statistics = {};
     this._metadata = {};
+    this._metadataCache.clear();
 
     this._links.configure(
       this._config.links,
@@ -439,7 +452,8 @@ export class EnergyCustomLegendCard extends LitElement {
         range.start,
         range.end,
         period,
-        statTypes
+        statTypes,
+        this._metadataCache
       );
       if (token !== this._fetchToken) {
         return; // a newer fetch already landed
