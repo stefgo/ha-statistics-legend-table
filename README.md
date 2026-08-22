@@ -11,18 +11,10 @@ card. It can nevertheless:
 - **show/hide another component** when a legend row is clicked (`link:`) — through one of three
   interchangeable mechanisms.
 
-```
-┌──────────────────────────────────────┐
-│ Energy flow                          │
-│  ▁▃▅█▅▃▁  (any card)                 │
-│                                      │
-│  ▬  Grid import            12.34 kWh │
-│  ▬  Solar production       45.67 kWh │
-│  ▬  Battery                 8.90 kWh │
-│  ────────────────────────────────────│
-│     Self-sufficiency          78.7 % │
-└──────────────────────────────────────┘
-```
+![One ha-card: an energy-custom-graph on top, five legend rows with their sums underneath, closed by a self-sufficiency total row](screenshots/statistics-legend-with-custom-graph.png)
+
+*One `ha-card`: an `energy-custom-graph` embedded via `card:`, five statistics with their sums,
+and a `total` row in `ratio` mode underneath.*
 
 ## Installation
 
