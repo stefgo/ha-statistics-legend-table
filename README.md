@@ -457,6 +457,8 @@ npm run watch     # rebuild on change
 npm run typecheck
 ```
 
+Released versions are documented in [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 MIT
