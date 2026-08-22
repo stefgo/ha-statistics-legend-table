@@ -73,8 +73,13 @@ state — which is why a legend with no `link` block still greys out rows and st
   energy cards and everything else built on it. It calls `_handleDatasetToggle(id)` and listens
   for `dataset-hidden`/`dataset-unhidden`. These are frontend internals — every access is
   guarded, so a rename degrades to "the legend only tracks its own state" instead of throwing.
-  `findDeep()` pierces shadow roots; the result is cached while it stays `isConnected`, because
-  `attach()` runs after every render.
+  The events bubble and are composed (`fireEvent` defaults), so the adapter listens on the legend
+  element itself and filters by `composedPath()` — the same idiom as `graph-selection.ts`. A chart
+  reference is still needed for `_handleDatasetToggle()` and for re-reading `_hiddenDatasets`;
+  `findDeep()` pierces shadow roots to get one, but only from `attach()`, which the card calls
+  after a render. On an update it decides not to render, the card calls `sync()` instead: the
+  adapters re-read what they mirror and nothing walks the DOM, because nothing can have moved.
+  The first event also hands over the chart for free through `composedPath()[0]`.
 - `entity-adapter.ts` toggles an entity via a service call. This is the universal escape hatch:
   it assumes nothing about the other card, so cards without any toggle API
   (`power-flow-card-plus`) are covered through a `conditional` card. It is also the only adapter

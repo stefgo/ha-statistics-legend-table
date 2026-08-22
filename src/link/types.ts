@@ -23,6 +23,12 @@ export interface LinkContext {
 export interface LinkAdapter {
   /** Called once the card is connected, and again whenever the target may have changed */
   attach(context: LinkContext): void;
+  /**
+   * Cheap refresh, called on updates the card decides not to render. An adapter
+   * may re-read state it mirrors, but must not search the DOM here — that is
+   * what `attach()` is for, and the DOM cannot have changed without a render.
+   */
+  sync?(context: LinkContext): void;
   /** Called on disconnect; must remove every listener it registered */
   detach(): void;
   /**

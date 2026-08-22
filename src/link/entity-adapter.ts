@@ -36,6 +36,11 @@ export class EntityLinkAdapter implements LinkAdapter {
     this._hass = context.hass;
   }
 
+  /** `hass` is all this adapter holds, so a cheap refresh is the same work */
+  public sync(context: LinkContext): void {
+    this._hass = context.hass;
+  }
+
   public detach(): void {
     this._hass = undefined;
   }
