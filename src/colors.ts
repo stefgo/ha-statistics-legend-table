@@ -59,16 +59,50 @@ export function resolveColor(
   darkMode: boolean,
   index: number
 ): string {
+  const fallback = paletteColor(index);
+
   if (typeof color === "string") {
-    return color;
+    return isColor(color) ? color.trim() : fallback;
   }
   if (color) {
     const picked = darkMode ? (color.dark ?? color.light) : (color.light ?? color.dark);
     if (picked) {
-      return picked;
+      return isColor(picked) ? picked.trim() : fallback;
     }
   }
-  return paletteColor(index);
+  return fallback;
+}
+
+const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const COLOR_FUNC = /^(?:rgba?|hsla?)\([0-9a-z.,%\s/+-]*\)$/i;
+const NAMED = /^[a-z]+$/i;
+const VARIABLE = /^var\(\s*--[a-z0-9_-]+\s*(?:,\s*[^;(){}]*)?\)$/i;
+
+/**
+ * Whether a configured color is plausibly a CSS color.
+ *
+ * `entities[].color` is written by whoever writes the dashboard, so this is not
+ * a security boundary — but the value ends up in a `style` attribute, and an
+ * unchecked string there can close the declaration and add its own. The render
+ * passes it through `styleMap`, which already refuses anything the CSSOM will
+ * not parse; this is the second half of that, and it also turns a typo into the
+ * palette color instead of an invisible swatch.
+ *
+ * Deliberately permissive about *which* colors: named ones, `var(...)` and the
+ * modern color functions all pass, because rejecting a valid color the browser
+ * understands would be worse than accepting a broken one the browser ignores.
+ */
+export function isColor(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 120) {
+    return false;
+  }
+  return (
+    HEX.test(trimmed) ||
+    COLOR_FUNC.test(trimmed) ||
+    NAMED.test(trimmed) ||
+    VARIABLE.test(trimmed)
+  );
 }
 
 const RGB_HEX = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;

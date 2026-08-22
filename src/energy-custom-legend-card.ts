@@ -24,6 +24,8 @@ import {
   LegendRow,
 } from "./config/types";
 import { isDarkMode } from "./colors";
+import { styleMap } from "lit/directives/style-map.js";
+
 import { hassAffectsRender, onlyHassChanged } from "./hass-changes";
 import {
   buildRows,
@@ -192,6 +194,8 @@ export class EnergyCustomLegendCard extends LitElement {
   private _selection?: ResolvedTimespan;
   /** Guards against an out-of-order fetch overwriting a newer one */
   private _fetchToken = 0;
+  /** The same guard for the wrapped card, which `setConfig()` rebuilds */
+  private _wrappedCardToken = 0;
 
   /**
    * Rendered width of the card, undefined until the first measurement. Decides
@@ -207,10 +211,29 @@ export class EnergyCustomLegendCard extends LitElement {
    */
   private _watchedEntities: string[] = [];
 
-  public static getStubConfig(): EnergyCustomLegendCardConfig {
+  /**
+   * Configuration the card picker previews the card with.
+   *
+   * It used to return `entities: []`, which `normalizeConfig()` rejects by
+   * design — so adding the card showed an error where a preview belongs, which
+   * is the worst possible first impression. A statistic is picked from the
+   * entities Home Assistant offers: one with a `state_class`, since only those
+   * have long-term statistics at all. Nothing suitable leaves a placeholder,
+   * which renders an empty legend instead of an error.
+   */
+  public static getStubConfig(
+    hass?: HomeAssistant,
+    entities?: string[],
+    entitiesFallback?: string[]
+  ): EnergyCustomLegendCardConfig {
+    const candidates = [...(entities ?? []), ...(entitiesFallback ?? [])];
+    const statisticId =
+      candidates.find((entityId) => hass?.states?.[entityId]?.attributes?.state_class) ??
+      "sensor.example_energy";
+
     return {
       type: "custom:energy-custom-legend-card",
-      entities: [],
+      entities: [{ statistic_id: statisticId }],
       legend: { columns: ["sum"] },
     } as EnergyCustomLegendCardConfig;
   }
@@ -248,23 +271,46 @@ export class EnergyCustomLegendCard extends LitElement {
   /* Wrapped card                                                            */
   /* ---------------------------------------------------------------------- */
 
+  /**
+   * Builds the element for the `card:` block.
+   *
+   * Guarded by a token for the same reason `_fetch()` is: `setConfig()` runs on
+   * every keystroke in the Lovelace editor, and this is asynchronous, so two
+   * calls can resolve in the opposite order and leave the card of the *older*
+   * config standing. The token makes a superseded call drop its result.
+   *
+   * `requestUpdate()` runs in a `finally` so the legend renders even when
+   * building the inner card failed outright — without it a rejection left the
+   * card silent as well as empty.
+   */
   private async _setupWrappedCard(config: EnergyCustomLegendCardConfig): Promise<void> {
-    if (!config.card) {
-      this._wrappedCard = undefined;
-      this.requestUpdate();
-      return;
-    }
+    const token = ++this._wrappedCardToken;
 
-    this._wrappedCard = await createWrappedCard(config.card);
-    if (this._wrappedCard) {
-      if (this.hass) {
-        this._wrappedCard.hass = this.hass;
+    try {
+      if (!config.card) {
+        this._wrappedCard = undefined;
+        return;
       }
-      if (this.layout !== undefined) {
-        this._wrappedCard.layout = this.layout;
+
+      const element = await createWrappedCard(config.card);
+      if (token !== this._wrappedCardToken) {
+        return; // a newer config won while this one was building
+      }
+
+      this._wrappedCard = element;
+      if (this._wrappedCard) {
+        if (this.hass) {
+          this._wrappedCard.hass = this.hass;
+        }
+        if (this.layout !== undefined) {
+          this._wrappedCard.layout = this.layout;
+        }
+      }
+    } finally {
+      if (token === this._wrappedCardToken) {
+        this.requestUpdate();
       }
     }
-    this.requestUpdate();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -719,6 +765,7 @@ export class EnergyCustomLegendCard extends LitElement {
         style="--ecl-columns: ${gridColumns}"
         role="button"
         tabindex="0"
+        aria-pressed=${!hidden}
         @click=${() => this._handleLegendClick(row)}
         @keydown=${(ev: KeyboardEvent) => {
           if (ev.key === "Enter" || ev.key === " ") {
@@ -729,9 +776,10 @@ export class EnergyCustomLegendCard extends LitElement {
       >
         <span
           class="legend-icon"
-          style="background-color: ${hidden
-            ? "transparent"
-            : row.fillColor}; border-color: ${row.color}"
+          style=${styleMap({
+            backgroundColor: hidden ? "transparent" : row.fillColor,
+            borderColor: row.color,
+          })}
         ></span>
         <span class="legend-name">${row.name}</span>
         ${noValues
