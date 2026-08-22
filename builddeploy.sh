@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds the card and deploys dist/energy-custom-legend.js to the Home Assistant instance.
+# Builds the card and deploys dist/statistics-legend-table.js to the Home Assistant instance.
 #
 # Configuration comes from .env (see .env.example); environment variables that
 # are already set take precedence.
@@ -15,13 +15,13 @@ if [ -f .env ]; then
   set +a
 fi
 
-HOST="${ENERGYLEGEND_HOST:-}"
-CONFIG="${ENERGYLEGEND_CONFIG:-/config}"
-TARGET="${ENERGYLEGEND_TARGET:-${CONFIG}/www/community/energy-custom-legend}"
-SSH_PORT="${ENERGYLEGEND_SSH_PORT:-22}"
+HOST="${STATSTABLE_HOST:-}"
+CONFIG="${STATSTABLE_CONFIG:-/config}"
+TARGET="${STATSTABLE_TARGET:-${CONFIG}/www/community/ha-statistics-legend-table}"
+SSH_PORT="${STATSTABLE_SSH_PORT:-22}"
 
 if [ -z "$HOST" ]; then
-  echo "ENERGYLEGEND_HOST is not set. Copy .env.example to .env and fill it in." >&2
+  echo "STATSTABLE_HOST is not set. Copy .env.example to .env and fill it in." >&2
   exit 1
 fi
 
@@ -29,11 +29,11 @@ echo "Building card ..."
 npm ci --silent
 # The local build counter is opt-in, so only the bundle deployed from here
 # carries one; releases built on GitHub stay at the plain semver.
-ENERGYLEGEND_BUILD_COUNTER=1 npm run build
+STATSTABLE_BUILD_COUNTER=1 npm run build
 
-echo "Deploying energy-custom-legend.js to ${HOST}:${TARGET} ..."
+echo "Deploying statistics-legend-table.js to ${HOST}:${TARGET} ..."
 ssh -p "${SSH_PORT}" "${HOST}" "mkdir -p ${TARGET}"
-scp -P "${SSH_PORT}" dist/energy-custom-legend.js "${HOST}:${TARGET}/"
+scp -P "${SSH_PORT}" dist/statistics-legend-table.js "${HOST}:${TARGET}/"
 
 # Read back what the build baked into the bundle, so the message below names
 # the exact build that was just deployed.
@@ -41,4 +41,4 @@ VERSION="$(node -p "require('./package.json').version")+build.$(cat .build-numbe
 
 echo "Done. Deployed version: ${VERSION}"
 echo "Clear the browser cache and reload the dashboard."
-echo "Resource URL: /hacsfiles/energy-custom-legend/energy-custom-legend.js"
+echo "Resource URL: /hacsfiles/ha-statistics-legend-table/statistics-legend-table.js"

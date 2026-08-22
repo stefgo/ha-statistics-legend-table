@@ -38,4 +38,4 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --generate-notes \
-            dist/energy-custom-legend.js
+            dist/statistics-legend-table.js

@@ -17,7 +17,7 @@ import {
   CalculationOperation,
   CalculationTerm,
   ColorConfig,
-  EnergyCustomLegendCardConfig,
+  StatisticsLegendTableCardConfig,
   EntityConfig,
   LegendColumn,
   LinkConfig,
@@ -77,7 +77,7 @@ export interface ResolvedEntity {
 }
 
 export interface ResolvedConfig {
-  raw: EnergyCustomLegendCardConfig;
+  raw: StatisticsLegendTableCardConfig;
   entities: ResolvedEntity[];
   links: LinkConfig[];
 }
@@ -254,7 +254,7 @@ function resolveEntity(entity: EntityConfig, index: number): ResolvedEntity {
 }
 
 /** `link` accepts a single block or a list; both become a list here */
-function resolveLinks(config: EnergyCustomLegendCardConfig): LinkConfig[] {
+function resolveLinks(config: StatisticsLegendTableCardConfig): LinkConfig[] {
   const raw = config.link;
   if (!raw) {
     return [];
@@ -271,7 +271,7 @@ function resolveLinks(config: EnergyCustomLegendCardConfig): LinkConfig[] {
     .filter((link) => link.mode !== "none");
 }
 
-export function normalizeConfig(config: EnergyCustomLegendCardConfig): ResolvedConfig {
+export function normalizeConfig(config: StatisticsLegendTableCardConfig): ResolvedConfig {
   if (!config || typeof config !== "object") {
     fail("Invalid configuration");
   }

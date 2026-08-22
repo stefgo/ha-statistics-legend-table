@@ -1,5 +1,5 @@
 /**
- * Energy Custom Legend Card
+ * Statistics Table and Legend Card
  *
  * A standalone legend: one row per configured statistic with a color swatch,
  * a name and aggregated values, clickable, plus an optional total row.
@@ -17,7 +17,7 @@ import type { HomeAssistant } from "custom-card-helpers";
 
 import { ResolvedConfig, columnsFor, normalizeConfig } from "./config/normalize";
 import {
-  EnergyCustomLegendCardConfig,
+  StatisticsLegendTableCardConfig,
   LegendColumn,
   LegendConfig,
   LegendGroupResult,
@@ -158,8 +158,8 @@ function describeError(err: unknown): string {
   return typeof err === "string" && err ? err : "Could not load statistics";
 }
 
-@customElement("energy-custom-legend-card")
-export class EnergyCustomLegendCard extends LitElement {
+@customElement("statistics-legend-table")
+export class StatisticsLegendTableCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
 
   /** Set by Home Assistant in section layouts, forwarded to the wrapped card */
@@ -237,20 +237,20 @@ export class EnergyCustomLegendCard extends LitElement {
     hass?: HomeAssistant,
     entities?: string[],
     entitiesFallback?: string[]
-  ): EnergyCustomLegendCardConfig {
+  ): StatisticsLegendTableCardConfig {
     const candidates = [...(entities ?? []), ...(entitiesFallback ?? [])];
     const statisticId =
       candidates.find((entityId) => hass?.states?.[entityId]?.attributes?.state_class) ??
       "sensor.example_energy";
 
     return {
-      type: "custom:energy-custom-legend-card",
+      type: "custom:statistics-legend-table",
       entities: [{ statistic_id: statisticId }],
       legend: { columns: ["sum"] },
-    } as EnergyCustomLegendCardConfig;
+    } as StatisticsLegendTableCardConfig;
   }
 
-  public setConfig(config: EnergyCustomLegendCardConfig): void {
+  public setConfig(config: StatisticsLegendTableCardConfig): void {
     // Throws on genuinely unrenderable configs; the message surfaces in the
     // Lovelace editor.
     this._config = normalizeConfig(config);
@@ -296,7 +296,7 @@ export class EnergyCustomLegendCard extends LitElement {
    * building the inner card failed outright — without it a rejection left the
    * card silent as well as empty.
    */
-  private async _setupWrappedCard(config: EnergyCustomLegendCardConfig): Promise<void> {
+  private async _setupWrappedCard(config: StatisticsLegendTableCardConfig): Promise<void> {
     const token = ++this._wrappedCardToken;
 
     try {
@@ -1002,6 +1002,6 @@ export class EnergyCustomLegendCard extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "energy-custom-legend-card": EnergyCustomLegendCard;
+    "statistics-legend-table": StatisticsLegendTableCard;
   }
 }

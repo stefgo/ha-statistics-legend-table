@@ -1,5 +1,5 @@
 /**
- * Configuration and row types for the Energy Custom Legend card.
+ * Configuration and row types for the Statistics Table and Legend card.
  *
  * Unlike the first version of this card, nothing here mirrors or forwards the
  * configuration of another card: `entities` defines what the legend shows,
@@ -316,7 +316,7 @@ export interface LinkConfig {
 /* Card                                                                        */
 /* -------------------------------------------------------------------------- */
 
-export interface EnergyCustomLegendCardConfig extends LovelaceCardConfig {
+export interface StatisticsLegendTableCardConfig extends LovelaceCardConfig {
   type: string;
   /** Card header rendered above everything else */
   title?: string;

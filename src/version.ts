@@ -7,7 +7,7 @@ declare const __CARD_SEMVER__: string;
 declare const __CARD_BUILD__: number;
 declare const __CARD_BUILD_TIME__: string;
 
-export const CARD_NAME = "energy-custom-legend-card";
+export const CARD_NAME = "statistics-legend-table";
 
 /** The released version — what `package.json` says, without the build counter */
 export const CARD_SEMVER =

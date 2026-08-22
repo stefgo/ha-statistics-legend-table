@@ -1,4 +1,4 @@
-# Energy Custom Legend
+# Statistics Table and Legend Card for Home Assistant
 
 Standalone Home Assistant Lovelace card that renders a legend in the style of the built-in energy
 cards: one row per statistic with a color indicator, name and aggregated values, clickable, plus an
@@ -27,12 +27,12 @@ card. It can nevertheless:
 ## Installation
 
 1. Add this repository to HACS as a “custom repository” (category *Lovelace*) and install it — or
-   copy `dist/energy-custom-legend.js` manually to
-   `config/www/community/energy-custom-legend/`.
+   copy `dist/statistics-legend-table.js` manually to
+   `config/www/community/ha-statistics-legend-table/`.
 2. Register the resource:
 
 ```yaml
-url: /hacsfiles/energy-custom-legend/energy-custom-legend.js
+url: /hacsfiles/ha-statistics-legend-table/statistics-legend-table.js
 type: module
 ```
 
@@ -42,7 +42,7 @@ There is **no** requirement on any other card. `energy-custom-graph`, `power-flo
 ## Minimal example
 
 ```yaml
-type: custom:energy-custom-legend-card
+type: custom:statistics-legend-table
 title: Energy flow
 timespan:
   mode: energy
@@ -70,7 +70,7 @@ legend:
 
 | Option        | Type   | Default | Description |
 | ------------- | ------ | ------- | ----------- |
-| `type`        | string | –       | `custom:energy-custom-legend-card` |
+| `type`        | string | –       | `custom:statistics-legend-table` |
 | `title`       | string | –       | Card heading |
 | `card`        | object | –       | Any Lovelace card, rendered above the legend (see below) |
 | `timespan`    | object | `{mode: energy}` | Time range of the statistics query |
@@ -277,7 +277,7 @@ unnamed remainder group at the end — nothing is lost.
 cards:
 
 ```yaml
-type: custom:energy-custom-legend-card
+type: custom:statistics-legend-table
 title: Energy flow
 card:
   type: custom:energy-custom-graph-card
@@ -407,7 +407,7 @@ cards:
     card:
       type: custom:power-flow-card-plus
       # ...
-  - type: custom:energy-custom-legend-card
+  - type: custom:statistics-legend-table
     link:
       mode: entity
     entities:
@@ -433,7 +433,7 @@ link:
 **Dispatched** on every click:
 
 ```js
-window.addEventListener("energy-custom-legend:toggle", (ev) => {
+window.addEventListener("statistics-legend-table:toggle", (ev) => {
   ev.detail; // { link_id: "energyflow", target: "sensor.grid_import", hidden: true }
 });
 ```
@@ -442,12 +442,12 @@ window.addEventListener("energy-custom-legend:toggle", (ev) => {
 
 ```js
 // single target
-window.dispatchEvent(new CustomEvent("energy-custom-legend:state", {
+window.dispatchEvent(new CustomEvent("statistics-legend-table:state", {
   detail: { link_id: "energyflow", target: "sensor.grid_import", hidden: true },
 }));
 
 // or the complete set of hidden targets
-window.dispatchEvent(new CustomEvent("energy-custom-legend:state", {
+window.dispatchEvent(new CustomEvent("statistics-legend-table:state", {
   detail: { link_id: "energyflow", hidden: ["sensor.grid_import"] },
 }));
 ```
@@ -460,7 +460,7 @@ window.dispatchEvent(new CustomEvent("energy-custom-legend:state", {
 
 ```bash
 npm install
-npm run build     # → dist/energy-custom-legend.js
+npm run build     # → dist/statistics-legend-table.js
 npm run watch     # rebuild on change
 npm run typecheck
 ```

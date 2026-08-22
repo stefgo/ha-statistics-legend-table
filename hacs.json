@@ -1,6 +1,6 @@
 {
-  "name": "Energy Custom Legend",
+  "name": "Statistics Table and Legend Card",
   "render_readme": true,
-  "filename": "energy-custom-legend.js",
+  "filename": "statistics-legend-table.js",
   "content_in_root": false
 }

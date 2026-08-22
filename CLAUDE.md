@@ -4,15 +4,14 @@ Guidance for Claude Code when working in this repository.
 
 ## Project Overview
 
-`energy-custom-legend` is a standalone Home Assistant Lovelace card
-(`custom:energy-custom-legend-card`) rendering a legend in the style of the built-in energy
+`statistics-legend-table` is a standalone Home Assistant Lovelace card
+(`custom:statistics-legend-table`) rendering a legend in the style of the built-in energy
 cards: one row per statistic with a color swatch, name and aggregated values, clickable, plus an
 optional total/ratio row.
 
-**The defining constraint of this project: the card must not depend on any other card.** An
-earlier version (kept at `/Users/stefan/Entwicklung/energy-custom-legend-old`) wrapped
-`energy-custom-graph-card`, forwarded that card's config as its own, and read its TypeScript-
-`private` fields for the values. That coupling is what this rewrite removes. Keep it removed:
+**The defining constraint of this project: the card must not depend on any other card.** It
+never wraps a foreign card to reach its data, never forwards its config to one, and never reads
+another element's TypeScript-`private` fields. Keep it that way:
 
 - The card fetches its own statistics from the recorder (`src/data/`).
 - Its config describes the legend and nothing else — no options are forwarded to another card.
@@ -24,7 +23,7 @@ The look is a port of the legend in the sibling project
 ## Commands
 
 ```bash
-npm run build      # Rollup → dist/energy-custom-legend.js
+npm run build      # Rollup → dist/statistics-legend-table.js
 npm run watch      # rebuild on change
 npm run typecheck  # tsc --noEmit
 ```
@@ -34,25 +33,25 @@ There is no test setup.
 ## Architecture
 
 ```
-src/index.ts                     card registration (window.customCards)
-src/energy-custom-legend-card.ts LitElement: config, data flow, rendering, click handling
-src/config/types.ts              config and row types
-src/config/normalize.ts          setConfig validation and defaults
-src/data/timespan.ts             timespan modes -> {start, end} + bucket period
-src/data/energy-collection.ts    subscription to the energy date picker
-src/data/statistics.ts           recorder websocket calls
-src/data/aggregate.ts            buckets -> LegendRow (sum/min/max/avg)
-src/colors.ts                    palette + swatch fill derivation
-src/legend-stats.ts              grouping, ordering, total row, number formatting
-src/legend-styles.ts             legend CSS
-src/wrapped-card.ts              creates the optional `card:` element
-src/link/                        the three link adapters + controller + graph selection
+src/index.ts                    card registration (window.customCards)
+src/statistics-legend-table.ts  LitElement: config, data flow, rendering, click handling
+src/config/types.ts             config and row types
+src/config/normalize.ts         setConfig validation and defaults
+src/data/timespan.ts            timespan modes -> {start, end} + bucket period
+src/data/energy-collection.ts   subscription to the energy date picker
+src/data/statistics.ts          recorder websocket calls
+src/data/aggregate.ts           buckets -> LegendRow (sum/min/max/avg)
+src/colors.ts                   palette + swatch fill derivation
+src/legend-stats.ts             grouping, ordering, total row, number formatting
+src/legend-styles.ts            legend CSS
+src/wrapped-card.ts             creates the optional `card:` element
+src/link/                       the three link adapters + controller + graph selection
 ```
 
 ### Three independent axes
 
-The card's design separates three concerns that the old version conflated. When adding a
-feature, work out which axis it belongs on:
+The card's design keeps three concerns strictly apart. When adding a feature, work out which
+axis it belongs on:
 
 1. **Data** (`src/data/`) — what the legend shows. Driven only by `entities`, `timespan` and
    `aggregation`. Never reads anything outside the recorder API.
@@ -92,8 +91,8 @@ state — which is why a legend with no `link` block still greys out rows and st
   a second graph on the view is ignored. The
   values are refetched for that period, so every column, calculated rows and both total modes
   follow it through the normal data flow.
-- `event-adapter.ts` implements the documented `energy-custom-legend:toggle` /
-  `energy-custom-legend:state` protocol on `window` (not a bubbling DOM event — the target card
+- `event-adapter.ts` implements the documented `statistics-legend-table:toggle` /
+  `statistics-legend-table:state` protocol on `window` (not a bubbling DOM event — the target card
   is a sibling, not an ancestor). Changing this protocol is a breaking change; it is documented
   in the README for third parties.
 
