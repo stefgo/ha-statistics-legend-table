@@ -63,6 +63,18 @@ export class LinkController {
   }
 
   /**
+   * Whether any adapter derives its answer from entity state.
+   *
+   * Only `EntityLinkAdapter` does. The card asks this to decide whether a
+   * `hass` update can change what the legend renders: without an entity link,
+   * no state in the house affects a single row, and the update can be skipped
+   * outright.
+   */
+  public tracksEntities(): boolean {
+    return this._adapters.some((adapter) => adapter instanceof EntityLinkAdapter);
+  }
+
+  /**
    * Whether a single target is hidden. The first adapter with an opinion wins,
    * so a chart toggled directly (or an entity switched elsewhere) is reflected
    * in the legend; local state only fills in when nobody knows better.

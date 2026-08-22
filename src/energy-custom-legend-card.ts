@@ -24,6 +24,7 @@ import {
   LegendRow,
 } from "./config/types";
 import { isDarkMode } from "./colors";
+import { hassAffectsRender, onlyHassChanged } from "./hass-changes";
 import {
   buildRows,
   collectRatioTotals,
@@ -168,7 +169,15 @@ export class EnergyCustomLegendCard extends LitElement {
   /** Tracked so a system-triggered theme flip can rebuild rows without a fetch */
   private _darkMode = false;
   private _wrappedCard?: LovelaceCardElement;
-  private _links = new LinkController(() => this.requestUpdate());
+  private _links = new LinkController(() => {
+    this._linkNotified = true;
+    this.requestUpdate();
+  });
+  /**
+   * Set while an adapter reports changed visibility. Only read on the path
+   * where `shouldUpdate()` is about to skip the render — see there.
+   */
+  private _linkNotified = false;
 
   private _unsubscribeEnergy?: () => void;
   private _unsubscribeSelection?: () => void;
@@ -190,6 +199,13 @@ export class EnergyCustomLegendCard extends LitElement {
    */
   private _cardWidth?: number;
   private _resizeObserver?: ResizeObserver;
+
+  /**
+   * Entities whose state can change what a row looks like, i.e. the link
+   * targets of every configured entity while an `entity` link is in play.
+   * Empty otherwise, which is the common case — see `shouldUpdate()`.
+   */
+  private _watchedEntities: string[] = [];
 
   public static getStubConfig(): EnergyCustomLegendCardConfig {
     return {
@@ -214,6 +230,12 @@ export class EnergyCustomLegendCard extends LitElement {
         .filter((entity) => entity.hiddenByDefault)
         .flatMap((entity) => entity.links)
     );
+
+    // Resolved once per config rather than per update: the set only changes
+    // with the config, and `shouldUpdate()` runs on every state change.
+    this._watchedEntities = this._links.tracksEntities()
+      ? [...new Set(this._config.entities.flatMap((entity) => entity.links))]
+      : [];
 
     this._selection = undefined;
 
@@ -458,11 +480,62 @@ export class EnergyCustomLegendCard extends LitElement {
   /* Lifecycle                                                               */
   /* ---------------------------------------------------------------------- */
 
+  /**
+   * Skips the render for a `hass` update that cannot change what is rendered.
+   *
+   * `hass` is a reactive property and Home Assistant replaces it on every state
+   * change in the whole house, so without this the card re-rendered — and
+   * re-walked the shadow DOM in `updated()` — several times a second on a busy
+   * installation, for values that are refetched on a timer anyway.
+   *
+   * Two traps make this less trivial than it reads, both verified rather than
+   * assumed. Lit calls `shouldUpdate()` *before* `willUpdate()`
+   * (`reactive-element.js:893`), so returning `false` skips `willUpdate()` too
+   * — forwarding `hass` to the wrapped card therefore has to happen here, for
+   * every update, or the embedded card would stop receiving state. And a bare
+   * `requestUpdate()` leaves `changedProps` empty, which
+   * `onlyHassChanged()` deliberately reports as "not just hass".
+   */
+  protected shouldUpdate(changedProps: PropertyValues): boolean {
+    if (changedProps.has("hass") && this._wrappedCard && this.hass) {
+      this._wrappedCard.hass = this.hass;
+    }
+
+    if (!onlyHassChanged(changedProps)) {
+      return true;
+    }
+
+    const previous = changedProps.get("hass") as HomeAssistant | undefined;
+    if (!previous || !this.hass) {
+      return true; // first hass, or it went away — willUpdate() has work to do
+    }
+
+    if (hassAffectsRender(previous, this.hass, this._watchedEntities)) {
+      return true;
+    }
+
+    // The render is skipped, so `updated()` will not run — and with it neither
+    // would `_links.attach()`, which is what re-reads the chart's hidden set.
+    // That set can change without any event (`_updateHiddenStatsFromOptions()`
+    // fills it from `legend.selected` on every options update), so dropping the
+    // re-read would let the mirrored state drift again, exactly the way the
+    // chart fix removed. It is called here instead. Where the chart is already
+    // resolved this costs a read of a handful of strings; where it is not, it
+    // costs the shadow-DOM walk it costs today — that walk is a separate
+    // measure, and skipping renders must not quietly reintroduce a bug to
+    // achieve it.
+    //
+    // An adapter noticing a change calls `notify()`, i.e. `requestUpdate()` —
+    // which Lit swallows here, because the pending update it would schedule is
+    // the very one being answered (`__markUpdated()` clears it on this path).
+    // Hence the flag rather than a second `requestUpdate()`.
+    this._linkNotified = false;
+    this._links.attach(this, this._wrappedCard, this.hass);
+    return this._linkNotified;
+  }
+
   protected willUpdate(changedProps: PropertyValues): void {
     if (changedProps.has("hass")) {
-      if (this._wrappedCard && this.hass) {
-        this._wrappedCard.hass = this.hass;
-      }
       // `mode: energy` needs `hass` to subscribe, which may only arrive after
       // setConfig(); the first hass sets everything in motion.
       const previous = changedProps.get("hass") as HomeAssistant | undefined;
