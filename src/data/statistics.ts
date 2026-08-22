@@ -41,7 +41,6 @@ export interface StatisticMetadata {
   name?: string | null;
   statistics_unit_of_measurement?: string | null;
   unit_class?: string | null;
-  has_sum?: boolean;
   /** Legacy, pre-2023 Home Assistant; never set on current versions */
   display_unit_of_measurement?: string | null;
 }
@@ -66,41 +65,17 @@ function requestedTypes(statTypes: Set<StatType>): string[] {
   return [...types];
 }
 
-/**
- * Fetches statistics and metadata for the given ids.
- *
- * Both calls are made in parallel; a failing metadata call is not fatal, since
- * it only supplies fallback names and units.
- */
-export async function fetchStatistics(
+/** One metadata call, reduced to a lookup and never fatal */
+async function fetchMetadata(
   hass: HomeAssistant,
-  statisticIds: string[],
-  start: Date,
-  end: Date,
-  period: AggregationPeriod,
-  statTypes: Set<StatType>
-): Promise<StatisticsResult> {
-  const ids = [...new Set(statisticIds)].filter(Boolean);
-  if (!ids.length) {
-    return { statistics: {}, metadata: {} };
-  }
-
-  const [statistics, metadataList] = await Promise.all([
-    hass.callWS<Statistics>({
-      type: "recorder/statistics_during_period",
-      start_time: start.toISOString(),
-      end_time: end.toISOString(),
+  ids: string[]
+): Promise<StatisticsMetadata> {
+  const metadataList = await hass
+    .callWS<StatisticMetadata[]>({
+      type: "recorder/get_statistics_metadata",
       statistic_ids: ids,
-      period,
-      types: requestedTypes(statTypes),
-    }),
-    hass
-      .callWS<StatisticMetadata[]>({
-        type: "recorder/get_statistics_metadata",
-        statistic_ids: ids,
-      })
-      .catch(() => [] as StatisticMetadata[]),
-  ]);
+    })
+    .catch(() => [] as StatisticMetadata[]);
 
   const metadata: StatisticsMetadata = {};
   if (Array.isArray(metadataList)) {
@@ -110,6 +85,96 @@ export async function fetchStatistics(
       }
     });
   }
+  return metadata;
+}
+
+/**
+ * Remembers the metadata of one set of statistic ids.
+ *
+ * Metadata answers what a statistic is called and which unit it is stored in.
+ * Neither changes while a dashboard is open, yet it was re-fetched with every
+ * refresh — for `mode: relative` that is once a minute, for the lifetime of the
+ * page, for an answer that is always the same.
+ *
+ * Keyed by the id set, so a config change reloads and nothing else does. An
+ * in-flight call is shared rather than duplicated: two refreshes close together
+ * would otherwise each ask.
+ *
+ * The staleness this accepts is deliberate. Since names are resolved from the
+ * entity, cached metadata only decides the unit and the name of an *external*
+ * statistic — neither of which changes without an integration being
+ * reconfigured, which reloads the dashboard anyway.
+ */
+export class StatisticsMetadataCache {
+  private _key = "";
+  private _metadata?: StatisticsMetadata;
+  private _pending?: Promise<StatisticsMetadata>;
+
+  public async get(hass: HomeAssistant, ids: string[]): Promise<StatisticsMetadata> {
+    const key = [...ids].sort().join("\u0000");
+
+    if (key !== this._key) {
+      this.clear();
+      this._key = key;
+    }
+    if (this._metadata) {
+      return this._metadata;
+    }
+    if (!this._pending) {
+      this._pending = fetchMetadata(hass, ids).then((metadata) => {
+        // A newer id set may have cleared the cache while this was in flight;
+        // only the answer that still matches the key is worth keeping.
+        if (key === this._key) {
+          this._metadata = metadata;
+          this._pending = undefined;
+        }
+        return metadata;
+      });
+    }
+    return this._pending;
+  }
+
+  /** Drops what is remembered, e.g. on a config change */
+  public clear(): void {
+    this._key = "";
+    this._metadata = undefined;
+    this._pending = undefined;
+  }
+}
+
+/**
+ * Fetches statistics and metadata for the given ids.
+ *
+ * Both calls are made in parallel; a failing metadata call is not fatal, since
+ * it only supplies fallback names and units. Passing a `cache` keeps the
+ * metadata across refreshes — see `StatisticsMetadataCache`; without one every
+ * call asks again, which is what the plain function does.
+ */
+export async function fetchStatistics(
+  hass: HomeAssistant,
+  statisticIds: string[],
+  start: Date,
+  end: Date,
+  period: AggregationPeriod,
+  statTypes: Set<StatType>,
+  cache?: StatisticsMetadataCache
+): Promise<StatisticsResult> {
+  const ids = [...new Set(statisticIds)].filter(Boolean);
+  if (!ids.length) {
+    return { statistics: {}, metadata: {} };
+  }
+
+  const [statistics, metadata] = await Promise.all([
+    hass.callWS<Statistics>({
+      type: "recorder/statistics_during_period",
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      statistic_ids: ids,
+      period,
+      types: requestedTypes(statTypes),
+    }),
+    cache ? cache.get(hass, ids) : fetchMetadata(hass, ids),
+  ]);
 
   return { statistics: statistics ?? {}, metadata };
 }
@@ -182,9 +247,14 @@ export function statisticLabel(
  * numbers that are not in it. The entity attribute is used only when the
  * metadata carries no unit at all.
  *
- * Converting to the user's display unit is a separate change: the `units:`
- * parameter is keyed by unit *class*, not by statistic, so it cannot express
- * two statistics of the same class in different units.
+ * Converting to the user's display unit is a separate change. It is done by
+ * passing `units:` to `recorder/statistics_during_period`, which is keyed by
+ * unit *class* — one target unit per class, everything of that class converges
+ * on it, and classes with no key set keep their native unit. That is the design
+ * of the parameter, not a limitation of it: Home Assistant's own
+ * `hui-statistics-graph-card` builds its `units` exactly that way. Whatever
+ * asks for a conversion has to make this function report the *requested* unit,
+ * or the label and the numbers come apart again.
  */
 export function statisticUnit(
   hass: HomeAssistant | undefined,
