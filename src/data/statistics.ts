@@ -115,26 +115,59 @@ export async function fetchStatistics(
 }
 
 /**
- * Display name of a statistic: its recorder metadata name, else the entity's
- * friendly name, else a readable form of the id itself.
+ * The part of a statistic id after the domain, as a readable phrase.
  *
- * Ported from `energy-graph-cards/utils/recorder.ts`.
+ * Empty for an external statistic (`domain:id`, which has no dot), so that such
+ * an id is never prettified: its second half is a recorder key, not a name.
+ */
+function readableId(statisticId: string): string {
+  const dot = statisticId.indexOf(".");
+  return dot === -1 ? "" : statisticId.slice(dot + 1).replace(/_/g, " ");
+}
+
+/**
+ * Display name of a statistic, resolved the way Home Assistant resolves it.
+ *
+ * The order is the one of `getStatisticLabel()` (`frontend/src/data/recorder.ts`):
+ * an existing entity names the statistic, and only a statistic *without* an
+ * entity — an external one, `domain:id` — falls back to the recorder metadata.
+ * This card used to prefer the metadata name, which is the same lookup with the
+ * two sources swapped. That is not a cosmetic difference: an entity renamed in
+ * Home Assistant keeps its old name in the recorder metadata, so the legend
+ * showed a different name for the very statistic a neighbouring energy card
+ * showed under its new one.
+ *
+ * The entity branch mirrors `computeStateName()`, including its distinction
+ * between an absent `friendly_name` (derive a name from the id) and one set to
+ * an empty value (HA renders nothing).
+ *
+ * Two deliberate departures remain, both in cases where HA ends up with no
+ * usable name and this card would rather show something than an empty or raw
+ * row: an empty `friendly_name` continues to the metadata name instead of
+ * rendering blank, and a statistic that neither an entity nor the metadata names
+ * is shown as its readable id rather than the id itself. Neither can disagree
+ * with a neighbouring card about a name, because in both cases the other card
+ * has no name to show either.
  */
 export function statisticLabel(
   hass: HomeAssistant | undefined,
   statisticId: string,
   metadata?: StatisticMetadata
 ): string {
-  if (metadata?.name) {
-    return metadata.name;
+  const entity = hass?.states?.[statisticId];
+  if (entity) {
+    const friendlyName = entity.attributes?.friendly_name;
+    // `undefined` means the entity carries no name and HA derives one from the
+    // id; any other value is the name, and `null` collapses to empty just as
+    // `computeStateName()`'s `?? ""` does — both empty results fall through.
+    const name =
+      friendlyName === undefined ? readableId(statisticId) : String(friendlyName ?? "");
+    if (name) {
+      return name;
+    }
   }
 
-  const friendlyName = hass?.states?.[statisticId]?.attributes?.friendly_name;
-  if (typeof friendlyName === "string" && friendlyName) {
-    return friendlyName;
-  }
-
-  return statisticId.split(".")[1]?.replace(/_/g, " ") || statisticId;
+  return metadata?.name || readableId(statisticId) || statisticId;
 }
 
 /**
