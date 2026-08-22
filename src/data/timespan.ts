@@ -184,3 +184,39 @@ export function periodFor(
   }
   return "hour";
 }
+
+/** Nominal length of one bucket, used to compare period granularities */
+const PERIOD_LENGTH: Record<AggregationPeriod, number> = {
+  "5minute": 5 * MINUTE,
+  hour: HOUR,
+  day: DAY,
+  week: 7 * DAY,
+  month: 28 * DAY,
+};
+
+const PERIODS_FINE_TO_COARSE: AggregationPeriod[] = ["5minute", "hour", "day", "week", "month"];
+
+/**
+ * Bucket size for a range selected in a linked chart.
+ *
+ * A selection is usually far shorter than the configured range, so the legend's
+ * own period may be coarser than the selected period itself — asking the
+ * recorder for `day` buckets over a selected hour would answer with the whole
+ * day. The period is therefore capped at the finest granularity that still fits
+ * into the selection, while a *finer* configured period is kept: it decides
+ * what `min`/`max`/`avg` mean, and staying finer than the selection is exactly
+ * what makes those columns meaningful inside it.
+ */
+export function periodForSelection(
+  setting: AggregationSetting | undefined,
+  range: ResolvedTimespan
+): AggregationPeriod {
+  const configured = periodFor(setting, range);
+  const span = range.end.getTime() - range.start.getTime();
+
+  const fitting =
+    [...PERIODS_FINE_TO_COARSE].reverse().find((period) => PERIOD_LENGTH[period] <= span) ??
+    "5minute";
+
+  return PERIOD_LENGTH[configured] <= PERIOD_LENGTH[fitting] ? configured : fitting;
+}

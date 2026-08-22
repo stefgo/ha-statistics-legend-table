@@ -46,7 +46,7 @@ src/colors.ts                    palette + swatch fill derivation
 src/legend-stats.ts              grouping, ordering, total row, number formatting
 src/legend-styles.ts             legend CSS
 src/wrapped-card.ts              creates the optional `card:` element
-src/link/                        the three link adapters + controller
+src/link/                        the three link adapters + controller + graph selection
 ```
 
 ### Three independent axes
@@ -79,6 +79,14 @@ state — which is why a legend with no `link` block still greys out rows and st
   it assumes nothing about the other card, so cards without any toggle API
   (`power-flow-card-plus`) are covered through a `conditional` card. It is also the only adapter
   whose state survives a reload.
+- `graph-selection.ts` is not an adapter: it listens on the legend element for the
+  `custom-graph-selection` event of `ha-custom-graph` and hands the card the selected period,
+  which then replaces the configured timespan for as long as the selection lasts
+  (`timespan.follow_selection`). The listener is deliberately scoped: bound to the card itself
+  and filtered to the `card:` element's `composedPath()`, so only the embedded graph counts and
+  a second graph on the view is ignored. The
+  values are refetched for that period, so every column, calculated rows and both total modes
+  follow it through the normal data flow.
 - `event-adapter.ts` implements the documented `energy-custom-legend:toggle` /
   `energy-custom-legend:state` protocol on `window` (not a bubbling DOM event — the target card
   is a sibling, not an ancestor). Changing this protocol is a breaking change; it is documented

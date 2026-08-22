@@ -88,6 +88,7 @@ legend:
 | `period`         | string | `day`    | `relative` only, see below |
 | `offset`         | number | `0`      | `relative` only: shifts by whole periods into the past |
 | `start` / `end`  | string | –        | `fixed` only: ISO 8601 timestamps |
+| `follow_selection` | boolean | `true` | Follow a period selected in the `custom-graph-card` embedded via `card:` |
 
 **`mode: energy`** couples the legend to the dashboard's energy date picker. That is the most
 convenient way to keep it in sync with a neighbouring card: both subscribe to the same date
@@ -98,6 +99,20 @@ automatically falls back to “today”.
 `year` = the current hour / today / this week / …) or a sliding window up to now
 (`last_60_minutes`, `last_24_hours`, `last_7_days`, `last_30_days`, `last_12_months`).
 The range is re-resolved every minute.
+
+**`follow_selection`** — clicking a bucket in a
+[`custom-graph-card`](https://github.com/stefgo/ha-custom-graph) makes that card report the
+selected period as a `custom-graph-selection` event. The legend follows that event **only from
+the graph inside its own `card:` block** — the listener sits on the legend element, so a graph
+placed elsewhere on the view never moves this legend — and then shows **all** of its values for
+that period: every column, calculated rows, the total row and
+`total.mode: ratio` alike. The values are fetched for the selected period rather than derived
+from the ones already displayed, so a selection finer than `aggregation.period` is answered
+correctly; the requested bucket size is capped at the length of the selection.
+
+Clicking the same bucket again, or switching the time range, clears the selection in the graph
+and returns the legend to its configured timespan. Set `follow_selection: false` for a legend
+that must always show the full range.
 
 ### `aggregation`
 

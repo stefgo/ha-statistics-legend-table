@@ -1,0 +1,42 @@
+#!/bin/bash
+# Builds the card and deploys dist/energy-custom-legend.js to the Home Assistant instance.
+#
+# Configuration comes from .env (see .env.example); environment variables that
+# are already set take precedence.
+
+set -e
+
+cd "$(dirname "$0")"
+
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
+HOST="${ENERGYLEGEND_HOST:-}"
+CONFIG="${ENERGYLEGEND_CONFIG:-/config}"
+TARGET="${ENERGYLEGEND_TARGET:-${CONFIG}/www/community/energy-custom-legend}"
+SSH_PORT="${ENERGYLEGEND_SSH_PORT:-22}"
+
+if [ -z "$HOST" ]; then
+  echo "ENERGYLEGEND_HOST is not set. Copy .env.example to .env and fill it in." >&2
+  exit 1
+fi
+
+echo "Building card ..."
+npm ci --silent
+npm run build
+
+echo "Deploying energy-custom-legend.js to ${HOST}:${TARGET} ..."
+ssh -p "${SSH_PORT}" "${HOST}" "mkdir -p ${TARGET}"
+scp -P "${SSH_PORT}" dist/energy-custom-legend.js "${HOST}:${TARGET}/"
+
+# Read back what the build baked into the bundle, so the message below names
+# the exact build that was just deployed.
+VERSION="$(node -p "require('./package.json').version")+build.$(cat .build-number 2>/dev/null || echo '?')"
+
+echo "Done. Deployed version: ${VERSION}"
+echo "Clear the browser cache and reload the dashboard."
+echo "Resource URL: /hacsfiles/energy-custom-legend/energy-custom-legend.js"
