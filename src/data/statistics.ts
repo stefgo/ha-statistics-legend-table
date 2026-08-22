@@ -26,13 +26,24 @@ export interface StatisticValue {
 /** Buckets keyed by `statistic_id` */
 export type Statistics = Record<string, StatisticValue[]>;
 
+/**
+ * Metadata as `recorder/get_statistics_metadata` actually returns it — mirrors
+ * `StatisticsMetaData` in `frontend/src/data/recorder.ts`.
+ *
+ * Note that the unit field is `statistics_unit_of_measurement`. There is no
+ * `unit_of_measurement` and no `display_unit_of_measurement` in this payload;
+ * the latter existed in much older Home Assistant versions and is kept here as
+ * an optional last resort only.
+ */
 export interface StatisticMetadata {
   statistic_id: string;
+  source?: string;
   name?: string | null;
-  unit_of_measurement?: string | null;
-  display_unit_of_measurement?: string | null;
+  statistics_unit_of_measurement?: string | null;
+  unit_class?: string | null;
   has_sum?: boolean;
-  has_mean?: boolean;
+  /** Legacy, pre-2023 Home Assistant; never set on current versions */
+  display_unit_of_measurement?: string | null;
 }
 
 export type StatisticsMetadata = Record<string, StatisticMetadata>;
@@ -126,7 +137,35 @@ export function statisticLabel(
   return statisticId.split(".")[1]?.replace(/_/g, " ") || statisticId;
 }
 
-/** Unit of a statistic, preferring the unit the user sees in the UI */
-export function statisticUnit(metadata?: StatisticMetadata): string {
-  return metadata?.display_unit_of_measurement || metadata?.unit_of_measurement || "";
+/**
+ * Unit of the values this card displays.
+ *
+ * `statistics_unit_of_measurement` comes first on purpose, and this is where it
+ * differs from the frontend's `getDisplayUnit()`, which prefers the entity's
+ * current `unit_of_measurement` attribute. That preference is only correct for
+ * a caller that also passes `units:` to `recorder/statistics_during_period` and
+ * has the recorder convert; without it the recorder answers in the statistic's
+ * own unit, so labelling with the entity attribute would put a unit next to
+ * numbers that are not in it. The entity attribute is used only when the
+ * metadata carries no unit at all.
+ *
+ * Converting to the user's display unit is a separate change: the `units:`
+ * parameter is keyed by unit *class*, not by statistic, so it cannot express
+ * two statistics of the same class in different units.
+ */
+export function statisticUnit(
+  hass: HomeAssistant | undefined,
+  statisticId: string | undefined,
+  metadata?: StatisticMetadata
+): string {
+  const fromMetadata =
+    metadata?.statistics_unit_of_measurement || metadata?.display_unit_of_measurement;
+  if (fromMetadata) {
+    return fromMetadata;
+  }
+
+  const attribute = statisticId
+    ? hass?.states?.[statisticId]?.attributes?.unit_of_measurement
+    : undefined;
+  return typeof attribute === "string" ? attribute : "";
 }

@@ -191,7 +191,7 @@ export function buildRows(
       name: entity.name ?? (firstId ? statisticLabel(hass, firstId, firstMeta) : entity.key),
       color,
       fillColor: withAlpha(color, SWATCH_FILL_ALPHA),
-      unit: entity.calculation?.unit ?? entity.unit ?? statisticUnit(firstMeta),
+      unit: entity.calculation?.unit ?? entity.unit ?? statisticUnit(hass, firstId, firstMeta),
       sum,
       min: count ? min : 0,
       max: count ? max : 0,
