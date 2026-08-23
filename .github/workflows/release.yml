@@ -28,7 +28,10 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
+      # STATSTABLE_MINIFY is release-only: local builds stay readable.
       - run: npm run build
+        env:
+          STATSTABLE_MINIFY: "1"
 
       - name: Create release with dist asset
         env:

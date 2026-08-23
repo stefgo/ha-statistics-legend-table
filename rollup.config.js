@@ -3,6 +3,7 @@ import typescript from "@rollup/plugin-typescript";
 import commonjs from "@rollup/plugin-commonjs";
 import json from "@rollup/plugin-json";
 import replace from "@rollup/plugin-replace";
+import terser from "@rollup/plugin-terser";
 import { defineConfig } from "rollup";
 import { createRequire } from "node:module";
 import { nextBuild } from "./scripts/build-number.mjs";
@@ -15,6 +16,10 @@ const pkg = createRequire(import.meta.url)("./package.json");
 // with, exactly like the build it stands in for.
 const { build, builtAt, full } = nextBuild(pkg.version);
 console.log(`statistics-legend-table ${full} (${builtAt})`);
+
+// Only the GitHub release workflow sets STATSTABLE_MINIFY; local builds and
+// `watch` keep the readable bundle.
+const minify = process.env.STATSTABLE_MINIFY === "1";
 
 export default defineConfig({
   input: "src/index.ts",
@@ -42,7 +47,14 @@ export default defineConfig({
       tsconfig: "./tsconfig.json",
       declaration: false,
     }),
-  ],
+    minify &&
+      terser({
+        format: {
+          comments: false,
+          preamble: `/*! statistics-legend-table ${full} | MIT */`,
+        },
+      }),
+  ].filter(Boolean),
   context: "window",
   onwarn: (warning) => {
     if (warning.code === "THIS_IS_UNDEFINED") return;
