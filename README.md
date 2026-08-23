@@ -16,7 +16,7 @@ card. It can nevertheless:
 - **show/hide another component** when a legend row is clicked (`link:`) — through one of three
   interchangeable mechanisms.
 
-![One ha-card combining Statistics Extended Graph and Statistics Table and Legend: a stacked energy chart on top, five legend rows with their sums underneath, closed by a self-sufficiency total row](screenshots/statistics-legend-with-custom-graph.png)
+![One ha-card combining Statistics Extended Graph and Statistics Table and Legend: a stacked energy chart on top, five legend rows with their sums underneath, closed by a self-sufficiency total row](https://raw.githubusercontent.com/stefgo/ha-statistics-legend-table/main/screenshots/statistics-legend-with-custom-graph.png)
 
 *Both cards combined in one `ha-card`: a
 [Statistics Extended Graph](https://github.com/stefgo/ha-statistics-extended-graph) chart embedded
