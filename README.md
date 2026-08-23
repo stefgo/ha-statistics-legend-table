@@ -11,10 +11,12 @@ card. It can nevertheless:
 - **show/hide another component** when a legend row is clicked (`link:`) — through one of three
   interchangeable mechanisms.
 
-![One ha-card: an energy-custom-graph on top, five legend rows with their sums underneath, closed by a self-sufficiency total row](screenshots/statistics-legend-with-custom-graph.png)
+![One ha-card combining Statistics Extended Graph and Statistics Table and Legend: a stacked energy chart on top, five legend rows with their sums underneath, closed by a self-sufficiency total row](screenshots/statistics-legend-with-custom-graph.png)
 
-*One `ha-card`: an `energy-custom-graph` embedded via `card:`, five statistics with their sums,
-and a `total` row in `ratio` mode underneath.*
+*Both cards combined in one `ha-card`: a
+[Statistics Extended Graph](https://github.com/stefgo/ha-statistics-extended-graph) chart embedded
+via `card:`, with this card's five statistics and their sums plus a `total` row in `ratio` mode
+underneath.*
 
 ## Installation
 
@@ -28,7 +30,7 @@ url: /hacsfiles/ha-statistics-legend-table/statistics-legend-table.js
 type: module
 ```
 
-There is **no** requirement on any other card. `energy-custom-graph`, `power-flow-card-plus`
+There is **no** requirement on any other card. `statistics-extended-graph`, `power-flow-card-plus`
 & co. are only needed if you actually want to embed them.
 
 ## Minimal example
@@ -80,7 +82,7 @@ legend:
 | `period`         | string | `day`    | `relative` only, see below |
 | `offset`         | number | `0`      | `relative` only: shifts by whole periods into the past |
 | `start` / `end`  | string | –        | `fixed` only: ISO 8601 timestamps |
-| `follow_selection` | boolean | `true` | Follow a period selected in the `custom-graph-card` embedded via `card:` |
+| `follow_selection` | boolean | `true` | Follow a period selected in the `statistics-extended-graph` card embedded via `card:` |
 
 **`mode: energy`** couples the legend to the dashboard's energy date picker. That is the most
 convenient way to keep it in sync with a neighbouring card: both subscribe to the same date
@@ -93,8 +95,8 @@ automatically falls back to “today”.
 The range is re-resolved every minute.
 
 **`follow_selection`** — clicking a bucket in a
-[`custom-graph-card`](https://github.com/stefgo/ha-custom-graph) makes that card report the
-selected period as a `custom-graph-selection` event. The legend follows that event **only from
+[Statistics Extended Graph](https://github.com/stefgo/ha-statistics-extended-graph) makes that
+card report the selected period as a selection event. The legend follows that event **only from
 the graph inside its own `card:` block** — the listener sits on the legend element, so a graph
 placed elsewhere on the view never moves this legend — and then shows **all** of its values for
 that period: every column, calculated rows, the total row and
@@ -272,7 +274,7 @@ cards:
 type: custom:statistics-legend-table
 title: Energy flow
 card:
-  type: custom:energy-custom-graph-card
+  type: custom:statistics-extended-graph
   hide_legend: true
   timespan:
     mode: energy
@@ -327,13 +329,13 @@ as visible and the next click hides the rest as well.
 ### `mode: chart`
 
 Controls cards that render their chart through Home Assistant's own `ha-chart-base` — that is,
-`energy-custom-graph`, the built-in energy cards and everything else built on top of it. The
+`statistics-extended-graph`, the built-in energy cards and everything else built on top of it. The
 coupling works in both directions: a click in the legend hides the series in the graph, and a
 series hidden in the graph is greyed out in the legend.
 
 ```yaml
 card:
-  type: custom:energy-custom-graph-card
+  type: custom:statistics-extended-graph
   hide_legend: true
   series:
     - statistic_id: sensor.grid_import
@@ -348,7 +350,7 @@ entities:
 
 `entities[].link` is resolved against the chart's series IDs: exact match first, otherwise
 **all** IDs whose segments start with the target. In most cases the `statistic_id` is therefore
-enough, even though `energy-custom-graph` internally uses IDs of the form
+enough, even though `statistics-extended-graph` internally uses IDs of the form
 `<statistic_id>:<stat_type>:<chart_type>:<index>`.
 
 If the same `statistic_id` appears several times in the chart, `link: sensor.x` captures **all**
@@ -370,7 +372,7 @@ entities:
 The actual IDs can be looked up in the DevTools inspector: select `ha-chart-base` and run
 `$0.data.map(s => s.id)`.
 
-Calculated series (`calculation:` in `energy-custom-graph`) have no `statistic_id`; there they
+Calculated series (`calculation:` in `statistics-extended-graph`) have no `statistic_id`; there they
 are called `calculation_<index>`, where `<index>` is the **position of the series in the
 `series:` list** (zero-based, counted across all series). So for the first series,
 `link: calculation_0`.
