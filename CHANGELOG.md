@@ -7,6 +7,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). A release
 its `v*` tag by the release workflow, which attaches the bundle to the GitHub release — that
 asset is what HACS installs.
 
+## [0.5.1] — 2026-08-24
+
+### Fixed
+
+- **The card fills the height it is given again.** `ha-card` had `height: 100%`, but the host
+  element itself had no height, so the percentage resolved against an auto height and the card
+  stayed exactly as tall as its content. In a layout that stretches its cells — a
+  `bootstrap-grid-card` column, Home Assistant's own grid — a legend next to a taller card was
+  drawn short instead of matching it. The host now carries the height, `ha-card` lays its parts
+  out as a flex column and the legend takes the leftover room, so the rows stay at the top.
+  Where no ancestor has a definite height (masonry, a section with `rows: auto`), the percentage
+  still resolves to auto and nothing changes.
+
 ## [0.5.0] — 2026-08-23
 
 The card is renamed in this release, and both the card type and the event protocol change with
@@ -133,5 +146,6 @@ First release: a standalone legend card that depends on no other card.
 - A release workflow that builds on a `v*` tag and attaches the bundle to the GitHub release, so
   HACS can install the card without `dist/` being committed.
 
+[0.5.1]: https://github.com/stefgo/ha-statistics-legend-table/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/stefgo/ha-statistics-legend-table/compare/v0.1.0...v0.5.0
 [0.1.0]: https://github.com/stefgo/ha-statistics-legend-table/releases/tag/v0.1.0
