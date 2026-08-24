@@ -88,9 +88,27 @@ export function matchesSelector(row: LegendRow, selector: string): boolean {
   return row.id === needle || row.name === needle;
 }
 
-/** True when a row renders without value columns and is excluded from totals */
+/**
+ * True when a row is excluded from `total: {mode: sum}`.
+ *
+ * Every row but an `always` one, including a `selection` row while its values
+ * are on screen: a row that carries no meaningful total over the range does not
+ * gain one by having a bucket selected, and the total would otherwise jump as
+ * the selection comes and goes.
+ */
 export function isExcludedFromValues(row: LegendRow): boolean {
-  return row.noValues;
+  return row.showValues !== "always";
+}
+
+/**
+ * True when a row renders its value columns empty.
+ *
+ * `never` hides them for good; `selection` hides them only outside a selection —
+ * the one period for which a row that carries no meaningful total (a price, a
+ * state of charge, a reference line) does have a value worth reading.
+ */
+export function hidesValues(row: LegendRow, selectionActive: boolean): boolean {
+  return row.showValues === "never" || (row.showValues === "selection" && !selectionActive);
 }
 
 /** Sums one statistic's raw buckets for the given type, ignoring gaps */

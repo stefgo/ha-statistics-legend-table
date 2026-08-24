@@ -15,6 +15,21 @@ export type LegendColumn = "sum" | "min" | "max" | "avg";
 
 export const ALL_LEGEND_COLUMNS: LegendColumn[] = ["sum", "min", "max", "avg"];
 
+/**
+ * When a row shows its value columns.
+ *
+ * - `always`: normal row, counted in `total: {mode: sum}`
+ * - `never`: value area stays empty
+ * - `selection`: empty over the configured timespan, filled while a period is
+ *   selected in the embedded graph (`timespan.follow_selection`)
+ *
+ * Only an `always` row feeds `total: {mode: sum}` — a row that shows values
+ * merely for a selected bucket must not move the total in and out of one.
+ */
+export type ShowValuesMode = "always" | "never" | "selection";
+
+export const ALL_SHOW_VALUES_MODES: ShowValuesMode[] = ["always", "never", "selection"];
+
 /** Statistic value read per bucket, mirrors the recorder's own types */
 export type StatType = "change" | "sum" | "mean" | "min" | "max" | "state";
 
@@ -205,8 +220,11 @@ export interface EntityConfig {
    * to the same state, and the row is drawn greyed out once they are all hidden.
    */
   link?: string | string[];
-  /** Row renders without value columns; excluded from `total: {mode: sum}` */
-  no_values?: boolean;
+  /**
+   * When the row shows its value columns, defaults to `always`. Anything other
+   * than `always` also takes the row out of `total: {mode: sum}`.
+   */
+  show_values?: ShowValuesMode;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -352,8 +370,8 @@ export interface LegendRow {
   count: number;
   /** Targets passed to the link adapters, from `EntityConfig.link`; never empty */
   links: string[];
-  /** From `EntityConfig.no_values` */
-  noValues: boolean;
+  /** From `EntityConfig.show_values` */
+  showValues: ShowValuesMode;
 }
 
 /** Rendered total row */

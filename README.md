@@ -138,7 +138,7 @@ hour. `Σ` is unaffected by this. `auto` follows Home Assistant's own rule (> 35
 | `multiply` / `add`  | number | `1` / `0` | Linear conversion per bucket (`value * multiply + add`) |
 | `hidden_by_default` | bool   | `false` | Row (and its link target) starts hidden |
 | `link`              | string / list | `key` | Target(s) in the coupled component, see `link` |
-| `no_values`         | bool   | `false` | Row without value display; does not feed into `total: {mode: sum}` |
+| `show_values`       | string | `always` | When the row shows values: `always`, `never`, `selection`, see below |
 
 `color` accepts either a single color or `{light: ..., dark: ...}`, to use different colors for
 the dashboard's light and dark mode. If one of the two sides is missing, the other is used for
@@ -154,6 +154,32 @@ entities:
 ```
 
 The order of the rows follows the order of the entries in `entities`.
+
+**`show_values`** decides when the row shows its value columns:
+
+| Value       | Row shows values |
+| ----------- | ---------------- |
+| `always`    | always — the normal row (default) |
+| `never`     | never; the value area stays empty |
+| `selection` | only while a period is selected in the embedded graph (see `timespan.follow_selection`) |
+
+`selection` is meant for rows whose total over the whole range says nothing, but
+whose value for a single bucket does — a price, a state of charge, a reference
+line. Outside a selection such a row is only a label with its color, on a click
+of the graph it fills up and on clearing the selection it empties again.
+
+Only an `always` row feeds `total: {mode: sum}`; `never` and `selection` rows stay
+out of it in both states, so the total does not jump as a selection comes and
+goes. `total: {mode: ratio}` is computed from raw statistics and is unaffected by
+`show_values` anyway.
+
+```yaml
+entities:
+  - statistic_id: sensor.electricity_price
+    name: Price
+    stat_type: mean
+    show_values: selection
+```
 
 #### Calculated rows
 
@@ -211,7 +237,8 @@ entities:
 | `total`        | object | –       | Closing row, see below |
 | `groups`       | list   | –       | Split into named sections, see below |
 
-`no_values` is set on the row itself in `entities[].no_values`, see above.
+Whether a row shows values at all is set on the row itself, in
+`entities[].show_values`, see above.
 
 **`min_name_width`** decides when a row runs out of horizontal room. When the
 name would be squeezed below this width, the values move onto a line of their

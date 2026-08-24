@@ -51,7 +51,7 @@ import {
   buildLegendGroups,
   computeTotal,
   formatValue,
-  isExcludedFromValues,
+  hidesValues,
 } from "./legend-stats";
 import { legendStyles } from "./legend-styles";
 import { LinkController } from "./link/controller";
@@ -771,7 +771,7 @@ export class StatisticsLegendTableCard extends LitElement {
     const precision = config.precision ?? DEFAULT_PRECISION;
     const showUnit = config.show_unit !== false;
     const unit = showUnit && row.unit ? ` ${row.unit}` : "";
-    const noValues = isExcludedFromValues(row);
+    const valuesHidden = hidesValues(row, this._selection !== undefined);
 
     return html`
       <div
@@ -796,7 +796,7 @@ export class StatisticsLegendTableCard extends LitElement {
           })}
         ></span>
         <span class="legend-name">${row.name}</span>
-        ${noValues
+        ${valuesHidden
           ? columns.map(() => html`<span class="legend-value"></span>`)
           : columns.map(
               (column) => html`<span class="legend-value"

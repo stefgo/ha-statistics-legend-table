@@ -203,7 +203,7 @@ export function buildRows(
       avg: count ? sum / count : 0,
       count,
       links: entity.links,
-      noValues: entity.noValues,
+      showValues: entity.showValues,
     };
   });
 }

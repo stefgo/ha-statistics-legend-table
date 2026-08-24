@@ -7,6 +7,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). A release
 its `v*` tag by the release workflow, which attaches the bundle to the GitHub release — that
 asset is what HACS installs.
 
+## [Unreleased]
+
+### Changed
+
+- **`entities[].no_values` becomes `entities[].show_values`** — a breaking config change. The flag
+  is now a mode: `always` (default, the normal row), `never` (what `no_values: true` did) and the
+  new `selection`. A `selection` row keeps its value area empty over the configured timespan and
+  fills it while a period is selected in the embedded graph (`timespan.follow_selection`) — for
+  rows whose total over the whole range says nothing but whose value for a single bucket does: a
+  price, a state of charge, a reference line. Replace `no_values: true` with `show_values: never`.
+  Everything but `always` stays out of `total: {mode: sum}`, in a selection as well, so the total
+  sums the same rows either way.
+
 ## [0.5.1] — 2026-08-24
 
 ### Fixed

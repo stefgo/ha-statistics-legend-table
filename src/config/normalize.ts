@@ -13,6 +13,7 @@ import {
   ALL_LEGEND_COLUMNS,
   ALL_RELATIVE_PERIODS,
   ALL_STAT_TYPES,
+  ALL_SHOW_VALUES_MODES,
   AggregationSetting,
   CalculationOperation,
   CalculationTerm,
@@ -23,6 +24,7 @@ import {
   LinkConfig,
   LinkMode,
   RelativePeriod,
+  ShowValuesMode,
   StatType,
   TimespanMode,
 } from "./types";
@@ -73,7 +75,7 @@ export interface ResolvedEntity {
   hiddenByDefault: boolean;
   /** At least one target; several mean one row drives several targets */
   links: string[];
-  noValues: boolean;
+  showValues: ShowValuesMode;
 }
 
 export interface ResolvedConfig {
@@ -249,7 +251,9 @@ function resolveEntity(entity: EntityConfig, index: number): ResolvedEntity {
     add: numberOr(entity.add, 0, `entities[${index}].add`),
     hiddenByDefault: entity.hidden_by_default === true,
     links: resolveLinkTargets(entity.link, key),
-    noValues: entity.no_values === true,
+    showValues:
+      oneOf(entity.show_values, ALL_SHOW_VALUES_MODES, `entities[${index}].show_values`) ??
+      "always",
   };
 }
 
