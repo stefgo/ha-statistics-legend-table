@@ -3,7 +3,7 @@
 [![Release](https://img.shields.io/github/v/release/stefgo/ha-statistics-legend-table?style=flat-square)](https://github.com/stefgo/ha-statistics-legend-table/releases)
 [![HACS: custom](https://img.shields.io/badge/HACS-custom-41BDF5?style=flat-square)](https://hacs.xyz/)
 [![Home Assistant 2025.2+](https://img.shields.io/badge/Home%20Assistant-2025.2%2B-41BDF5?style=flat-square)](https://www.home-assistant.io/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/stefgo/ha-statistics-legend-table/blob/main/LICENSE)
 
 Standalone Home Assistant Lovelace card that renders a legend in the style of the built-in energy
 cards: one row per statistic with a color indicator, name and aggregated values, clickable, plus an
@@ -460,7 +460,7 @@ npm run watch     # rebuild on change
 npm run typecheck
 ```
 
-Released versions are documented in [CHANGELOG.md](CHANGELOG.md).
+Released versions are documented in [CHANGELOG.md](https://github.com/stefgo/ha-statistics-legend-table/blob/main/CHANGELOG.md).
 
 ## License
 
