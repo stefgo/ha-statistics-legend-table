@@ -14,9 +14,21 @@ export const legendStyles = css`
      itself and fell back to its stacked layout at every width. */
   :host {
     display: block;
+    /* The card has to be able to fill the room it is given, not only the room
+       its content needs: layout cards that put cards of different heights side
+       by side (bootstrap-grid-card, HA's own grid) stretch their cells and
+       expect the card to follow. Without a height on the host the percentage
+       below resolves against an auto height, so the ha-card stayed at content
+       height and the shorter card rendered short inside a stretched cell.
+       Where no ancestor has a definite height — masonry, a section with
+       rows: auto — the percentage resolves to auto, i.e. unchanged. */
+    height: 100%;
   }
   ha-card {
     height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
   }
   .card-header {
     display: flex;
@@ -34,6 +46,9 @@ export const legendStyles = css`
     gap: 16px;
     padding: 0 16px 16px;
     margin-top: 8px;
+    /* Takes up whatever a stretched card has left over, so the empty surface
+       below the last row belongs to the legend and the rows stay at the top. */
+    flex: 1 1 auto;
   }
   .legend-group {
     display: flex;
