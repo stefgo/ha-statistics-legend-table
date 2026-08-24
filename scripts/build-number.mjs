@@ -13,9 +13,8 @@
  * (`STATSTABLE_BUILD_COUNTER=1`). A plain `npm run build`, and with it the
  * release workflow on GitHub, reports the bare semver.
  *
- * Unlike the sibling project this is not a code generator — rollup replaces the
- * placeholders in `src/version.ts` at build time, so nothing has to be written
- * into `src/`.
+ * This is not a code generator — rollup replaces the placeholders in
+ * `src/version.ts` at build time, so nothing has to be written into `src/`.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 

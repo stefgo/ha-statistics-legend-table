@@ -17,9 +17,6 @@ another element's TypeScript-`private` fields. Keep it that way:
 - Its config describes the legend and nothing else — no options are forwarded to another card.
 - Everything card-specific lives behind an adapter in `src/link/`.
 
-The look is a port of the legend in the sibling project
-`/Users/stefan/Entwicklung/energy-graph-cards` (`energy-usage-graph-card.ts`, `.legend*` styles).
-
 ## Commands
 
 ```bash

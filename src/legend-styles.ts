@@ -1,6 +1,6 @@
 /**
- * Legend styling, ported from the custom legend of energy-graph-cards
- * (energy-usage-graph-card.ts) and extended for multiple value columns.
+ * Legend styling in the look of the built-in energy cards' legend,
+ * extended for multiple value columns.
  */
 
 import { css } from "lit";

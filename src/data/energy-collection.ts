@@ -8,8 +8,8 @@
  * the legend in sync with a neighbouring card *without* either knowing about
  * the other — the shared date picker is the only contact point.
  *
- * Ported from `energy-graph-cards/utils/energy-data.ts`, reduced to the range:
- * this card fetches its own statistics, so only `start`/`end` are of interest.
+ * Reduced to the range: this card fetches its own statistics, so only
+ * `start`/`end` are of interest.
  */
 
 import type { HomeAssistant } from "custom-card-helpers";
