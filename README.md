@@ -386,10 +386,6 @@ are called `calculation_<index>`, where `<index>` is the **position of the serie
 card standing next to the legend as a card of its own is not reachable this way — put it in
 `card:`, or drive it through `mode: entity` and a `conditional` card.
 
-> **Changed:** earlier versions had a `target:` option taking a CSS selector, which searched the
-> whole document. It is gone. A `target:` left in an existing configuration is ignored rather than
-> rejected, so nothing stops working — but the link then addresses the `card:` block.
-
 ### `mode: entity`
 
 The click toggles an entity — usually an `input_boolean`. This lets you control **any** card,
