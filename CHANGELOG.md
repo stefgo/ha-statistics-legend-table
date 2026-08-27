@@ -7,7 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). A release
 its `v*` tag by the release workflow, which attaches the bundle to the GitHub release — that
 asset is what HACS installs.
 
-## [Unreleased]
+## [0.5.2] — 2026-08-27
+
+### Fixed
+
+- **The `sum` column is correct for level statistics again** (`stat_type: mean`, `min`, `max`,
+  `state`). It always added the bucket values up, which only makes sense for the additive types
+  (`change`, `sum`); for a level the result grew with the number of buckets. `show_values:
+  selection` showed a multiple of the real value that way, because a selected period is fetched
+  with a finer bucket size than the configured timespan. The column now shows the average,
+  smallest, largest and last bucket respectively.
 
 ### Changed
 
@@ -19,6 +28,11 @@ asset is what HACS installs.
   price, a state of charge, a reference line. Replace `no_values: true` with `show_values: never`.
   Everything but `always` stays out of `total: {mode: sum}`, in a selection as well, so the total
   sums the same rows either way.
+- **The README is restructured.** Sections are ordered by relevance (`entities`, `timespan`,
+  `legend`, `aggregation`, then the optional `card`/`link` blocks), the option tables within them
+  put the everyday options first, longer prose moved into named subsections, and every
+  cross-reference is now an anchor link naming the chapter it points to. A table of contents and a
+  table choosing between the three `link` modes were added.
 
 ## [0.5.1] — 2026-08-24
 
@@ -159,6 +173,7 @@ First release: a standalone legend card that depends on no other card.
 - A release workflow that builds on a `v*` tag and attaches the bundle to the GitHub release, so
   HACS can install the card without `dist/` being committed.
 
+[0.5.2]: https://github.com/stefgo/ha-statistics-legend-table/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/stefgo/ha-statistics-legend-table/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/stefgo/ha-statistics-legend-table/compare/v0.1.0...v0.5.0
 [0.1.0]: https://github.com/stefgo/ha-statistics-legend-table/releases/tag/v0.1.0
