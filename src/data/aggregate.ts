@@ -1,9 +1,11 @@
 /**
  * Turns recorder buckets into legend rows.
  *
- * `sum` is the aggregate over the whole timespan; `min`/`max`/`avg` are computed
- * across the *buckets*, so they mean "the smallest/largest/average hour" (or
- * day, month, …) depending on `aggregation.period`.
+ * `sum` is the aggregate over the whole timespan — added up for the additive
+ * `change`/`sum` statistics, condensed instead for a level (`mean`/`min`/`max`/
+ * `state`), see `aggregateOverBuckets()`. `min`/`max`/`avg` are computed across
+ * the *buckets*, so they mean "the smallest/largest/average hour" (or day,
+ * month, …) depending on `aggregation.period`.
  */
 
 import type { HomeAssistant } from "custom-card-helpers";
@@ -152,6 +154,42 @@ export function evaluateCalculation(
   return values;
 }
 
+/**
+ * The `sum` column of a row: the whole timespan condensed into one value.
+ *
+ * Only `change`/`sum` are additive — adding them up over the buckets is exactly
+ * what they mean. A `mean`/`min`/`max`/`state` statistic is a *level*, not an
+ * amount: summing the per-bucket values there produces a number that grows with
+ * the bucket count (a price averaging 30 ct over an hour read as 360 ct at
+ * `5minute` buckets), so those types condense the way the recorder itself does —
+ * the average, the smallest, the largest bucket, and the last known level.
+ *
+ * This is what makes `show_values: selection` correct for the rows it exists
+ * for: a selected period is fetched with a finer period than the configured
+ * range, so a summed level jumped by a factor as the selection came and went.
+ */
+function aggregateOverBuckets(
+  values: number[],
+  statType: StatType,
+  total: number,
+  avg: number,
+  min: number,
+  max: number
+): number {
+  switch (statType) {
+    case "mean":
+      return avg;
+    case "min":
+      return min;
+    case "max":
+      return max;
+    case "state":
+      return values[values.length - 1] ?? 0;
+    default:
+      return total;
+  }
+}
+
 /** Builds one legend row per configured entity, in configuration order */
 export function buildRows(
   entities: ResolvedEntity[],
@@ -175,11 +213,11 @@ export function buildRows(
         ? raw
         : raw.map((value) => value * entity.multiply + entity.add);
 
-    let sum = 0;
+    let total = 0;
     let min = Number.POSITIVE_INFINITY;
     let max = Number.NEGATIVE_INFINITY;
     values.forEach((value) => {
-      sum += value;
+      total += value;
       if (value < min) {
         min = value;
       }
@@ -189,6 +227,7 @@ export function buildRows(
     });
 
     const count = values.length;
+    const avg = count ? total / count : 0;
     const color = resolveColor(entity.color, darkMode, index);
 
     return {
@@ -197,10 +236,10 @@ export function buildRows(
       color,
       fillColor: withAlpha(color, SWATCH_FILL_ALPHA),
       unit: entity.calculation?.unit ?? entity.unit ?? statisticUnit(hass, firstId, firstMeta),
-      sum,
+      sum: count ? aggregateOverBuckets(values, entity.statType, total, avg, min, max) : 0,
       min: count ? min : 0,
       max: count ? max : 0,
-      avg: count ? sum / count : 0,
+      avg,
       count,
       links: entity.links,
       showValues: entity.showValues,

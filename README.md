@@ -237,6 +237,13 @@ entities:
 | `total`        | object | –       | Closing row, see below |
 | `groups`       | list   | –       | Split into named sections, see below |
 
+The `sum` column adds the buckets up only for the additive statistic types
+(`stat_type: change`, `sum`). For a level — `mean`, `min`, `max`, `state` — adding
+buckets would produce a value that grows with `aggregation.period`, so the column
+shows the average, smallest, largest and last bucket respectively. That is also
+what makes `show_values: selection` read correctly: a selected period is fetched
+with a finer bucket size than the configured timespan.
+
 Whether a row shows values at all is set on the row itself, in
 `entities[].show_values`, see above.
 
