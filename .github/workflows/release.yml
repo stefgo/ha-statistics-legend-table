@@ -33,6 +33,14 @@ jobs:
         env:
           STATSTABLE_MINIFY: "1"
 
+      # The release body is the tag's CHANGELOG section, so every release is
+      # described in full. Fails the build when that section is missing, rather
+      # than publishing a release with an empty body.
+      - name: Build release notes from CHANGELOG
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: scripts/release-notes.sh "$TAG" > release-notes.md
+
       - name: Create release with dist asset
         env:
           GH_TOKEN: ${{ github.token }}
@@ -40,5 +48,5 @@ jobs:
         run: |
           gh release create "$TAG" \
             --title "$TAG" \
-            --generate-notes \
+            --notes-file release-notes.md \
             dist/statistics-legend-table.js

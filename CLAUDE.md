@@ -27,6 +27,19 @@ npm run typecheck  # tsc --noEmit
 
 There is no test setup.
 
+## Releases
+
+A release is cut by bumping `package.json`, closing the `## [Unreleased]` section in
+`CHANGELOG.md` as `## [x.y.z] — <date>` with its compare link, committing as `Release x.y.z` and
+pushing an annotated `vx.y.z` tag. The tag triggers `.github/workflows/release.yml`, which builds
+minified and attaches the bundle to the GitHub release.
+
+**Every release must carry a full description.** The release body is not hand-written and never
+auto-generated from commit subjects: `scripts/release-notes.sh <version>` extracts the version's
+`CHANGELOG.md` section, and the workflow passes it to `gh release create --notes-file`. So the
+CHANGELOG entry *is* the release description — write it for a reader upgrading the card, and the
+release gets it for free. A missing CHANGELOG section fails the release build on purpose.
+
 ## Architecture
 
 ```
