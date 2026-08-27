@@ -23,9 +23,12 @@ cd "$(dirname "$0")/.."
 # Everything between this version's heading and the next one, with the heading
 # itself dropped — GitHub already shows the version as the release title.
 NOTES="$(awk -v v="$VERSION" '
-  $0 ~ "^## \\[" v "\\]" { inside = 1; next }
-  inside && /^## \[/     { exit }
-  inside                 { print }
+  $0 ~ "^## \\[" v "\\]"  { inside = 1; next }
+  inside && /^## \[/      { exit }
+  # The oldest section is followed by the link definitions, which close the
+  # file rather than the section — they must not end up in the release body.
+  inside && /^\[[^]]+\]: / { exit }
+  inside                  { print }
 ' CHANGELOG.md)"
 
 # Trim leading and trailing blank lines.
