@@ -25,7 +25,8 @@ npm run watch      # rebuild on change
 npm run typecheck  # tsc --noEmit
 ```
 
-There is no test setup.
+Tests are in `test/*.test.ts` (vitest, `npm test`) and cover the pure modules —
+the elements themselves have no DOM-based tests.
 
 ## Releases
 
@@ -35,7 +36,7 @@ pushing an annotated `vx.y.z` tag. The tag triggers `.github/workflows/release.y
 minified and attaches the bundle to the GitHub release.
 
 **Every release must carry a full description.** The release body is not hand-written and never
-auto-generated from commit subjects: `scripts/release-notes.sh <version>` extracts the version's
+auto-generated from commit subjects: `.github/scripts/release_notes.py <version>` extracts the version's
 `CHANGELOG.md` section, and the workflow passes it to `gh release create --notes-file`. So the
 CHANGELOG entry *is* the release description — write it for a reader upgrading the card, and the
 release gets it for free. A missing CHANGELOG section fails the release build on purpose.
