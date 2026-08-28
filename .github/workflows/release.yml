@@ -17,29 +17,44 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
-      - uses: actions/setup-node@v4
+      # HACS shows the tag, the bundle reports the version baked in at build
+      # time — if the two drift apart, an update looks installed but is not.
+      - name: Check version against tag
+        run: |
+          tag="${TAG#v}"
+          version=$(python3 -c "import json;print(json.load(open('package.json'))['version'])")
+          if [ "$tag" != "$version" ]; then
+            echo "Tag $TAG does not match version $version in package.json" >&2
+            exit 1
+          fi
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
 
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test
       # STATSTABLE_MINIFY is release-only: local builds stay readable.
       - run: npm run build
         env:
           STATSTABLE_MINIFY: "1"
 
+
       # The release body is the tag's CHANGELOG section, so every release is
-      # described in full. Fails the build when that section is missing, rather
-      # than publishing a release with an empty body.
-      - name: Build release notes from CHANGELOG
+      # described in full — a missing section stops the release instead of
+      # publishing one that says nothing.
+      - name: Assemble release notes
         env:
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: scripts/release-notes.sh "$TAG" > release-notes.md
+        run: python3 .github/scripts/release_notes.py "$TAG" release-notes.md
 
       - name: Create release with dist asset
         env:
