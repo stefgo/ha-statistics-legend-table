@@ -4,8 +4,6 @@ Guidance for Claude Code when working in this repository.
 
 ## Project overview
 
-
-
 `statistics-legend-table` is a standalone Home Assistant Lovelace card
 (`custom:statistics-legend-table`) rendering a legend in the style of the built-in energy
 cards: one row per statistic with a color swatch, name and aggregated values, clickable, plus an
@@ -21,17 +19,15 @@ another element's TypeScript-`private` fields. Keep it that way:
 
 ## Commands
 
-
-
 ```bash
 npm run build      # Rollup → dist/statistics-legend-table.js
 npm run watch      # rebuild on change
 npm run typecheck  # tsc --noEmit
+npm run lint       # eslint (npm run lint:fix to autofix)
+npm test           # vitest run
 ```
 
 ## Architecture
-
-
 
 ```
 src/index.ts                    card registration (window.customCards)
@@ -123,15 +119,12 @@ the Lovelace editor. Everything else is silently defaulted.
 
 ## Testing
 
-
 Tests are in `test/*.test.ts` (vitest, `npm test`) and cover the pure modules —
 the elements themselves have no DOM-based tests, so `npm run typecheck` is what
 guards them. `.github/workflows/validate.yml` runs the HACS check, typecheck,
 tests and the build on every push and pull request.
 
 ## Releasing
-
-
 
 A release is cut by bumping `package.json`, closing the `## [Unreleased]` section in
 `CHANGELOG.md` as `## [x.y.z] — <date>` with its compare link, committing as `Release x.y.z` and
@@ -146,16 +139,12 @@ release gets it for free. A missing CHANGELOG section fails the release build on
 
 ## Conventions
 
-
-
 - Keep new config options optional with sensible defaults; never break existing YAML.
 - Prefer graceful fallbacks over hard failures — the card sits on a user dashboard.
 - Do not fork or copy another card's source into this repo.
 - Anything that knows about a specific foreign card belongs in `src/link/`, nowhere else.
 
 ## Not implemented yet
-
-
 
 - GUI editor (`getConfigElement`) — YAML only.
 - An expression tree for calculated rows. `entities[].calculation` (ordered terms, evaluated

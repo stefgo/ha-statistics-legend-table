@@ -30,6 +30,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       # The bundle is not committed, so a broken rollup config would otherwise
