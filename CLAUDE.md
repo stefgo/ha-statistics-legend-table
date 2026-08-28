@@ -2,7 +2,9 @@
 
 Guidance for Claude Code when working in this repository.
 
-## Project Overview
+## Project overview
+
+
 
 `statistics-legend-table` is a standalone Home Assistant Lovelace card
 (`custom:statistics-legend-table`) rendering a legend in the style of the built-in energy
@@ -19,29 +21,17 @@ another element's TypeScript-`private` fields. Keep it that way:
 
 ## Commands
 
+
+
 ```bash
 npm run build      # Rollup → dist/statistics-legend-table.js
 npm run watch      # rebuild on change
 npm run typecheck  # tsc --noEmit
 ```
 
-Tests are in `test/*.test.ts` (vitest, `npm test`) and cover the pure modules —
-the elements themselves have no DOM-based tests.
-
-## Releases
-
-A release is cut by bumping `package.json`, closing the `## [Unreleased]` section in
-`CHANGELOG.md` as `## [x.y.z] — <date>` with its compare link, committing as `Release x.y.z` and
-pushing an annotated `vx.y.z` tag. The tag triggers `.github/workflows/release.yml`, which builds
-minified and attaches the bundle to the GitHub release.
-
-**Every release must carry a full description.** The release body is not hand-written and never
-auto-generated from commit subjects: `.github/scripts/release_notes.py <version>` extracts the version's
-`CHANGELOG.md` section, and the workflow passes it to `gh release create --notes-file`. So the
-CHANGELOG entry *is* the release description — write it for a reader upgrading the card, and the
-release gets it for free. A missing CHANGELOG section fails the release build on purpose.
-
 ## Architecture
+
+
 
 ```
 src/index.ts                    card registration (window.customCards)
@@ -131,7 +121,32 @@ so the period decides what those columns mean. `auto` mirrors Home Assistant's o
 entity without a statistic, an unknown enum value) — `setConfig()` runs on every keystroke in
 the Lovelace editor. Everything else is silently defaulted.
 
+## Testing
+
+
+Tests are in `test/*.test.ts` (vitest, `npm test`) and cover the pure modules —
+the elements themselves have no DOM-based tests, so `npm run typecheck` is what
+guards them. `.github/workflows/validate.yml` runs the HACS check, typecheck,
+tests and the build on every push and pull request.
+
+## Releasing
+
+
+
+A release is cut by bumping `package.json`, closing the `## [Unreleased]` section in
+`CHANGELOG.md` as `## [x.y.z] — <date>` with its compare link, committing as `Release x.y.z` and
+pushing an annotated `vx.y.z` tag. The tag triggers `.github/workflows/release.yml`, which builds
+minified and attaches the bundle to the GitHub release.
+
+**Every release must carry a full description.** The release body is not hand-written and never
+auto-generated from commit subjects: `.github/scripts/release_notes.py <version>` extracts the version's
+`CHANGELOG.md` section, and the workflow passes it to `gh release create --notes-file`. So the
+CHANGELOG entry *is* the release description — write it for a reader upgrading the card, and the
+release gets it for free. A missing CHANGELOG section fails the release build on purpose.
+
 ## Conventions
+
+
 
 - Keep new config options optional with sensible defaults; never break existing YAML.
 - Prefer graceful fallbacks over hard failures — the card sits on a user dashboard.
@@ -139,6 +154,8 @@ the Lovelace editor. Everything else is silently defaulted.
 - Anything that knows about a specific foreign card belongs in `src/link/`, nowhere else.
 
 ## Not implemented yet
+
+
 
 - GUI editor (`getConfigElement`) — YAML only.
 - An expression tree for calculated rows. `entities[].calculation` (ordered terms, evaluated
