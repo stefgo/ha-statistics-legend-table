@@ -7,6 +7,54 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). A release
 its `v*` tag by the release workflow, which attaches the bundle to the GitHub release — that
 asset is what HACS installs.
 
+## [0.5.3] — 2026-08-29
+
+A maintenance release. The card renders exactly as in 0.5.2 — nothing under
+`src/` changed. What changed is the ground it stands on: the dependencies moved
+to their current majors, and the repository gained the checks and the release
+machinery the other ha-custom projects already have.
+
+### Added
+
+- **Tests.** A vitest scaffold (`npm test`) with the first suite over
+  `config/normalize.ts` — the entry point of every dashboard, which Lovelace
+  calls from `setConfig()` on every keystroke in the editor. It is pure and needs
+  no DOM, which is what makes it the place the suite starts.
+- **ESLint** over the TypeScript sources (`npm run lint`, `npm run lint:fix`).
+  Syntactic only — types stay `npm run typecheck`'s job and no formatting rules
+  are enforced, so it adds a check without rewriting working code.
+- **`validate.yml` runs on every push and pull request**, not only on a tag: the
+  HACS check, lint, typecheck, tests and the build. The bundle is not committed,
+  so a broken rollup config used to surface no earlier than the release itself.
+  A weekly run catches HACS changing its rules with nothing committed here.
+- **dependabot** for GitHub actions and npm, with the rollup packages grouped
+  into one pull request.
+- **A weekly TypeScript 7 probe.** `@rollup/plugin-typescript` cannot build with
+  the native port (it reads `ts.ModuleKind` at module scope), so dependabot holds
+  typescript at 7.x. The probe stays silent while that is still true and opens an
+  issue on the day the build goes green.
+
+### Changed
+
+- **typescript 5 → 6 and custom-card-helpers 1 → 2**, plus rollup to its current
+  version. No source change was needed for either; the card's own API and its
+  YAML are untouched. The bundle is rebuilt from these, so this release is worth
+  installing even though nothing visible moved.
+- **The release notes come from `.github/scripts/release_notes.py`**, the same
+  script in all four ha-custom repositories. Same rule as before: a tag whose
+  CHANGELOG section is missing stops the release instead of publishing one that
+  says nothing. The release now also checks the tag against `package.json` and
+  runs the tests before it builds.
+- **`builddeploy.sh` and `.env.example` use the shared `HA_*` variable names**
+  (`HA_HOST` / `HA_SSH_PORT` / `HA_CONFIG` / `HA_TARGET`) instead of the
+  card-specific ones. **An existing local `.env` needs its variable names updated
+  once**; the build flag `STATSTABLE_MINIFY` keeps its name.
+- **`hacs.json` names the minimum Home Assistant version** (2025.2.0), so HACS
+  can refuse the install instead of the card failing on the dashboard.
+- `CLAUDE.md` follows the structure every ha-custom project uses, and documents
+  the test setup and the release procedure.
+- The CI images moved to Node 22 and the pinned actions to their current majors.
+
 ## [0.5.2] — 2026-08-27
 
 ### Fixed
@@ -173,6 +221,7 @@ First release: a standalone legend card that depends on no other card.
 - A release workflow that builds on a `v*` tag and attaches the bundle to the GitHub release, so
   HACS can install the card without `dist/` being committed.
 
+[0.5.3]: https://github.com/stefgo/ha-statistics-legend-table/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/stefgo/ha-statistics-legend-table/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/stefgo/ha-statistics-legend-table/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/stefgo/ha-statistics-legend-table/compare/v0.1.0...v0.5.0
