@@ -36,10 +36,12 @@ machinery the other ha-custom projects already have.
 
 ### Changed
 
-- **typescript 5 → 6 and custom-card-helpers 1 → 2**, plus rollup to its current
-  version. No source change was needed for either; the card's own API and its
-  YAML are untouched. The bundle is rebuilt from these, so this release is worth
-  installing even though nothing visible moved.
+- **typescript 5 → 6, custom-card-helpers 1 → 2 and eslint 9 → 10**, plus rollup
+  to its current version. No source change was needed for any of them; the card's
+  own API and its YAML are untouched. ESLint 10 stops pulling its own config
+  package in transitively, so `@eslint/js` is now declared as a devDependency of
+  its own. The bundle is rebuilt from these, so this release is worth installing
+  even though nothing visible moved.
 - **The release notes come from `.github/scripts/release_notes.py`**, the same
   script in all four ha-custom repositories. Same rule as before: a tag whose
   CHANGELOG section is missing stops the release instead of publishing one that
