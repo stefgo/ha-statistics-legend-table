@@ -1,11 +1,12 @@
 # Changelog
 
-All notable changes to this card are documented here.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
+project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
-adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). A release is built from
-its `v*` tag by the release workflow, which attaches the bundle to the GitHub release — that
-asset is what HACS installs.
+An entry is put together by the release workflow: the text written by hand in
+`.release/next.md`, followed by the list of commits. Installation instructions
+are added to the release page and do not belong in an entry. The entries up to
+0.5.3 were written by hand as a whole.
 
 ## [0.5.3] — 2026-08-29
 
