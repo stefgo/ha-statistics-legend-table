@@ -25,8 +25,9 @@ export interface LinkAdapter {
   attach(context: LinkContext): void;
   /**
    * Cheap refresh, called on updates the card decides not to render. An adapter
-   * may re-read state it mirrors, but must not search the DOM here — that is
-   * what `attach()` is for, and the DOM cannot have changed without a render.
+   * may re-read state it mirrors, but must not search the DOM as a matter of
+   * course — that is what `attach()` is for. Replacing a target that has left
+   * the document is the exception: the wrapped card renders without this one.
    */
   sync?(context: LinkContext): void;
   /** Called on disconnect; must remove every listener it registered */

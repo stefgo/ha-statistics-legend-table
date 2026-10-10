@@ -101,8 +101,10 @@ export class ChartLinkAdapter implements LinkAdapter {
   public attach(context: LinkContext): void {
     this._context = context;
     this._listen(context.host);
-    this._resolve();
-    this.sync(context);
+    const replaced = this._resolve();
+    if (this._syncHidden() || replaced) {
+      context.notify();
+    }
   }
 
   /**
@@ -114,10 +116,18 @@ export class ChartLinkAdapter implements LinkAdapter {
    * an event ("No known need to remove items at this time", as the frontend puts
    * it). Reading a Set of a handful of strings is cheap enough to do on every
    * update of the card; walking the shadow DOM for it was not.
+   *
+   * The one exception is a chart that has left the document. The wrapped card
+   * renders on its own schedule — a graph swaps its chart for a "loading"
+   * placeholder and builds a new element afterwards — so the DOM does change
+   * without this card rendering. A reference kept past that point reads and
+   * toggles an element nobody sees. It is dropped here, with a single walk for
+   * its successor; while there is no chart at all nothing is searched.
    */
   public sync(context: LinkContext): void {
     this._context = context;
-    if (this._chartBase && this._syncHidden()) {
+    const replaced = this._isStale() ? this._resolve() : false;
+    if (this._syncHidden() || replaced) {
       context.notify();
     }
   }
@@ -167,19 +177,31 @@ export class ChartLinkAdapter implements LinkAdapter {
    * often it runs. It used to run on every `hass` update whenever the chart had
    * not been found, which on a busy installation was several full walks per
    * second, for a DOM that had not changed in between.
+   *
+   * Returns whether a mirrored hidden state was discarded along with the chart
+   * it belonged to — the legend has rendered that state and must hear about it,
+   * which the comparison in `_syncHidden()` cannot tell once the mirror is empty.
    */
-  private _resolve(): void {
+  private _resolve(): boolean {
     if (this._chartBase?.isConnected) {
-      return;
+      return false;
     }
     const scope = this._context?.wrappedCard;
     const found = scope
       ? (findDeep(scope, CHART_TAG) as unknown as AnyRecord & EventTarget | undefined)
       : undefined;
-    if (found !== this._chartBase) {
-      this._chartBase = found;
-      this._hidden.clear();
+    if (found === this._chartBase) {
+      return false;
     }
+    this._chartBase = found;
+    const discarded = this._hidden.size > 0;
+    this._hidden.clear();
+    return discarded;
+  }
+
+  /** Whether the chart held is one the wrapped card has since replaced */
+  private _isStale(): boolean {
+    return Boolean(this._chartBase) && !this._chartBase!.isConnected;
   }
 
   /**
@@ -222,8 +244,15 @@ export class ChartLinkAdapter implements LinkAdapter {
    * secondaries would make the second call undo the first. That is exactly what
    * happens with a compare series (`<id>--compare` is a segment-prefix match for
    * the same target), which left the row permanently un-greyable.
+   *
+   * The chart is resolved again first. A click is rare enough to afford the
+   * walk, and it is the one moment a stale or missing reference shows: the row
+   * greyed out while the series stayed on screen, and only the second click —
+   * after the render the first one caused had found the real chart — hid it.
    */
   public toggle(target: string, hidden: boolean): void {
+    this._resolve();
+    this._syncHidden();
     const chartBase = this._chartBase;
     if (!chartBase || typeof chartBase._handleDatasetToggle !== "function") {
       return;
