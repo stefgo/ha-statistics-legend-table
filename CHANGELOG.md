@@ -8,6 +8,26 @@ An entry is put together by the release workflow: the text written by hand in
 are added to the release page and do not belong in an entry. The entries up to
 0.5.3 were written by hand as a whole.
 
+## [0.5.4](https://github.com/stefgo/ha-statistics-legend-table/compare/v0.5.3...v0.5.4) (2026-10-10)
+
+### Fixed
+
+- The first click on a legend row after loading the page greyed out the row but left its
+  series in the chart; only a second click hid it. This happened with a `chart` link
+  whenever the embedded card had rebuilt its chart after the legend first found it — while
+  loading its data, for example. The legend now notices the replaced chart, and a click
+  always acts on the one that is on screen.
+
+### Releases
+
+Releases are now produced by the release workflow all stefgo projects share. A version can
+be tried as a beta before it is released, and every release is described here by hand, above
+the list of commits.
+
+### Bug Fixes
+
+* **link:** Toggle the chart that is on screen ([e27de3d](https://github.com/stefgo/ha-statistics-legend-table/commit/e27de3da30d41c85b15bc79463ed3deae317928d))
+
 ## [0.5.3] — 2026-08-29
 
 A maintenance release. The card renders exactly as in 0.5.2 — nothing under
