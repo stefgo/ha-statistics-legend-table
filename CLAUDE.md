@@ -122,7 +122,9 @@ the Lovelace editor. Everything else is silently defaulted.
 Tests are in `test/*.test.ts` (vitest, `npm test`) and cover the pure modules —
 the elements themselves have no DOM-based tests, so `npm run typecheck` is what
 guards them. `.github/workflows/validate.yml` runs the HACS check, typecheck,
-tests and the build on every push and pull request.
+tests and the build on every push and pull request. Dependabot's pull requests
+are merged by `.github/workflows/dependabot-auto-merge.yml` once their Validate
+run is green; a red one stays open for a human.
 
 ## Releasing
 
