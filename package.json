@@ -34,13 +34,13 @@
     "@rollup/plugin-replace": "^6.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
-    "eslint": "^10.9.1",
-    "globals": "^17.11.0",
-    "rollup": "^4.63.0",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
+    "rollup": "^4.63.1",
     "tslib": "^2.7.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.68.0",
-    "vitest": "^4.1.11"
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
   },
   "dependencies": {
     "custom-card-helpers": "^2.0.0",
