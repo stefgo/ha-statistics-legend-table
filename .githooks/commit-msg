@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Checks the commit message against commitlint.config.mjs.
+#
+# It is activated by `core.hooksPath`, which the `prepare` script sets on every
+# `npm install`.
+npx --no -- commitlint --edit "$1"

@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/statistics-legend-table.js",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "dev": "rollup -c -w",
@@ -24,6 +25,8 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
     "@eslint/js": "^10.0.1",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-json": "^6.1.0",

@@ -1,67 +1,68 @@
-name: Release
+name: Create Release
 
+# A release is an action, not a side effect of pushing a tag. It is started by
+# hand from the Actions tab -- on main for a release, on dev for a beta
+# (x.y.z-beta.n, a prerelease HACS offers only with beta versions switched on).
+# Versions and tags are never created by hand.
+#
+# What a release is, how its version is found and how its notes are put
+# together is the same for every stefgo project and lives in
+# https://github.com/stefgo/release-workflows. This file offers the inputs and
+# says what is particular here: the checks, and the bundle HACS installs.
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Tag to build and release (e.g. v0.1.0)"
-        required: true
+      dry_run:
+        description: "Dry run -- shows the next version and its notes, changes nothing"
+        type: boolean
+        default: true
+      bump:
+        description: "Version step"
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+# Two runs at once would read the same last tag and compute the same next
+# version. Not cancelling: a run cut off between the push and the publish
+# leaves a tag without a release.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  # In front of the checks: the branch, the hand-written notes in
+  # .release/next.md and the state of dev against main are known at dispatch,
+  # and the checks take minutes to get to them.
+  preflight:
+    uses: stefgo/release-workflows/.github/workflows/preflight.yml@v1
+    permissions:
+      contents: read
+
+  checks:
+    needs: preflight
+    uses: ./.github/workflows/validate.yml
+
   release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
-
-      # HACS shows the tag, the bundle reports the version baked in at build
-      # time — if the two drift apart, an update looks installed but is not.
-      - name: Check version against tag
-        run: |
-          tag="${TAG#v}"
-          version=$(python3 -c "import json;print(json.load(open('package.json'))['version'])")
-          if [ "$tag" != "$version" ]; then
-            echo "Tag $TAG does not match version $version in package.json" >&2
-            exit 1
-          fi
-        env:
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      # STATSTABLE_MINIFY is release-only: local builds stay readable.
-      - run: npm run build
-        env:
-          STATSTABLE_MINIFY: "1"
-
-
-      # The release body is the tag's CHANGELOG section, so every release is
-      # described in full — a missing section stops the release instead of
-      # publishing one that says nothing.
-      - name: Assemble release notes
-        env:
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: python3 .github/scripts/release_notes.py "$TAG" release-notes.md
-
-      - name: Create release with dist asset
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: |
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes-file release-notes.md \
-            dist/statistics-legend-table.js
+    needs: checks
+    uses: stefgo/release-workflows/.github/workflows/release.yml@v1
+    permissions:
+      contents: write # release commit, tag and GitHub release
+      issues: write # @semantic-release/github comments on issues ...
+      pull-requests: write # ... and on pull requests
+    with:
+      dry_run: ${{ inputs.dry_run }}
+      bump: ${{ inputs.bump }}
+      # A BREAKING CHANGE footer raises the minor position; the major one is
+      # reserved for bump: major.
+      breaking: minor
+      # dist/ is not committed; the bundle is built here, after package.json
+      # carries the new version and before the commit and the tag, so a failing
+      # build leaves neither behind. STATSTABLE_MINIFY is release-only: local builds
+      # stay readable.
+      build_command: |
+        npm ci
+        STATSTABLE_MINIFY=1 npm run build
+      release_assets: dist/statistics-legend-table.js

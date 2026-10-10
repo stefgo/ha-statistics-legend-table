@@ -579,8 +579,8 @@ export class StatisticsLegendTableCard extends LitElement {
     // event (`_updateHiddenStatsFromOptions()` fills it from `legend.selected`
     // on every options update). Dropping it would let the mirrored state drift
     // again, exactly the way the chart fix removed. `sync()` does that re-read
-    // and nothing else: no DOM is searched here, because nothing has rendered,
-    // so nothing can have moved.
+    // and, beyond it, only replaces a chart the wrapped card has thrown away
+    // in a render of its own — the DOM is not searched on every update.
     //
     // An adapter noticing a change calls `notify()`, i.e. `requestUpdate()` —
     // which Lit swallows here, because the pending update it would schedule is
