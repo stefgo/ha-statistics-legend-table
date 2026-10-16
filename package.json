@@ -34,7 +34,7 @@
     "@rollup/plugin-replace": "^6.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
-    "eslint": "^10.10.0",
+    "eslint": "^10.12.0",
     "globals": "^17.12.0",
     "rollup": "^4.64.6",
     "tslib": "^2.7.0",
